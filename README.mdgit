@@ -1,0 +1,2 @@
+"# biai"  initgit add README.mdgit commit -m "first commit"git branch -M maingit remote add origin https://github.com/taf4you2/biai.gitgit push -u origin main
+"# biai"  initgit add README.mdgit commit -m "first commit"git branch -M maingit remote add origin https://github.com/taf4you2/biai.gitgit push -u origin main
