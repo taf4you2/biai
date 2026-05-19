@@ -12,7 +12,17 @@
     - Wykrywanie anomalii amplitudowych (próg 200 uV).
 - **Wyniki**: Wykryto ponad 15 tys. punktów anomalnych w surowym sygnale.
 
+## [2026-05-19] - Zaawansowany Pipeline i Przygotowanie Datasetu
+- **Implementacja `DETALICZNY_PIPELINE.ipynb`**: Interaktywny notebook demonstrujący każdy krok przetwarzania.
+- **Aktualizacja `process_eeg.py`**:
+    - Dodano filtr Notch (50 Hz).
+    - Wdrożono Common Average Reference (CAR).
+    - Automatyczna korekcja artefaktów ocznych za pomocą ICA.
+    - Wygładzanie czasowe filtrem Savitzky-Golay.
+    - Generowanie spektrogramów 128x128 wygładzonych filtrem Gaussa.
+- **Wyniki**: Wygenerowano 21 obrazów treningowych w `eeg_dataset_vqvae/` gotowych do użycia w modelu VQ-VAE.
+
 ## Planowane kroki:
-1. Generowanie spektrogramów/obrazów 128x128 z sygnału EEG dla modelu AtomVQVAE.
-2. Przygotowanie skryptu trenującego (Dataset Loader).
-3. Detekcja anomalii na podstawie błędu rekonstrukcji VQ-VAE.
+1. Przygotowanie skryptu trenującego model VQ-VAE (AtomVQVAE) w PyTorch.
+2. Detekcja anomalii na podstawie błędu rekonstrukcji.
+3. Eksperymenty z parametrami wygładzania w celu optymalizacji stabilności modelu.
