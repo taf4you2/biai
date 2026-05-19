@@ -1,0 +1,72 @@
+# Plan Wdrożenia Poprawek: Standaryzacja Pipeline'u Przetwarzania Sygnałów EEG
+
+**Cel:** Modyfikacja obecnego potoku przetwarzania danych (pipeline'u) w celu spełnienia akademickich i profesjonalnych standardów analizy sygnałów EEG (MNE-Python). Ulepszony pipeline zminimalizuje wpływ artefaktów niefizjologicznych na cechy wyjściowe (Band Power) podawane do modeli uczenia maszynowego (np. EEGNet).
+
+---
+
+## 1. Stan Obecny vs. Identyfikacja Braków (Gap Analysis)
+
+**Obecny pipeline obejmuje:**
+1. Wczytanie surowych danych EDF.
+2. Usunięcie kanałów technicznych.
+3. Filtrowanie częstotliwościowe (Band-pass 1-40 Hz, Notch 50 Hz).
+4. Przekształcenie do dziedziny częstotliwości (PSD Welch) na ciągłym sygnale.
+5. Ekstrakcja cech (Band Power) i wizualizacja (Topomaps).
+
+**Zidentyfikowane braki (do natychmiastowej poprawy):**
+*   **Brak wspólnej referencji (Common Average Reference):** Sygnał jest zrelatywizowany do elektrody Pz, co zniekształca rozkład przestrzenny mocy w mapach topograficznych (np. "ślepy punkt" w okolicach Pz).
+*   **Zanieczyszczenie pasma Delta (1-4 Hz):** Brak usuwania artefaktów ocznych (EOG). Widoczna asymetrycznie wysoka moc na elektrodach Fp1/Fp2 sugeruje, że model klasyfikacyjny będzie uczył się rozpoznawać mrugnięcia, a nie rzeczywistą aktywność kory mózgowej.
+*   **Brak sanityzacji danych w dziedzinie czasu:** Obliczanie PSD na całym, ciągłym nagraniu (7.5 min) powoduje włączanie do analizy przejściowych artefaktów o wysokiej amplitudzie (np. zaciskanie szczęki, ruchy głową).
+
+---
+
+## 2. Planowane Rozwiązania i Harmonogram Wdrożenia
+
+Aby dostosować pipeline do standardów, zostaną wdrożone trzy kluczowe etapy pomiędzy filtrowaniem (krok 3) a transformacją Welcha (krok 4).
+
+### Krok A: Wdrożenie Common Average Reference (CAR)
+*   **Uzasadnienie:** Przejście z fizycznej referencji (Pz) na referencję uśrednioną przestrzennie zapobiegnie faworyzowaniu lub tłumieniu konkretnych rejonów kory.
+*   **Implementacja:**
+    ```python
+    # Przelicza sygnał względem średniej z całego czepka.
+    raw_filtered.set_eeg_reference('average', projection=False)
+Krok B: Korekcja Artefaktów Ocznych z użyciem ICA
+
+    Uzasadnienie: Dekompozycja sygnału pozwoli wyizolować i usunąć składowe odpowiedzialne za mruganie oczami bez utraty danych z kory przedczołowej. Rozwiąże to problem sztucznie zawyżonego pasma Delta na Fp1/Fp2.
+
+    Implementacja:
+# Inicjalizuje i dopasowuje algorytm ICA.
+ica = mne.preprocessing.ICA(n_components=15, random_state=97, max_iter='auto')
+ica.fit(raw_filtered)
+
+# Identyfikuje komponenty oczne.
+eog_indices, eog_scores = ica.find_bads_eog(raw_filtered, ch_name=['Fp1', 'Fp2'])
+ica.exclude = eog_indices
+
+# Usuwa wybrane komponenty z sygnału.
+ica.apply(raw_filtered)
+### Krok C: Segmentacja (Epoching) i Thresholding
+*   **Uzasadnienie:** Zamiast analizować ciągły sygnał, dane zostaną pocięte na krótsze okna czasowe (np. 2 lub 4 sekundy). Epoki przekraczające fizjologiczne normy amplitudy (np. powyżej 150 µV, co sugeruje artefakty mięśniowe - EMG) zostaną automatycznie odrzucone.
+*   **Implementacja:**
+    ```python
+    # Dzieli sygnał na epoki o stałej długości.
+    epochs = mne.make_fixed_length_epochs(raw_filtered, duration=4.0, preload=True)
+
+    # Odrzuca epoki z sygnałem przekraczającym zadany próg.
+    reject_criteria = dict(eeg=150e-6) 
+    epochs.drop_bad(reject=reject_criteria)
+3. Zmiany w Metodologii Wyliczania Cech (Feature Extraction)
+
+Po wdrożeniu powyższych poprawek, faza ekstrakcji cech ulegnie lekkiej modyfikacji:
+
+    Funkcja Welcha (scipy.signal.welch lub zintegrowane epochs.compute_psd) będzie aplikowana nie na ciągłym sygnale (raw_filtered), ale na czystych, przefiltrowanych epokach (epochs).
+
+    Moc dla każdego pasma zostanie uśredniona po wszystkich zachowanych epokach.
+
+4. Spodziewane Rezultaty
+
+    Zbalansowane topomapy: Przestrzenny rozkład mocy (szczególnie w paśmie Alpha) będzie równomierny, bez pustych przestrzeni w strefie potyliczno-ciemieniowej (Pz).
+
+    Czyste pasmo Delta: Drastyczny spadek wartości PSD dla zakresu 1-4 Hz na elektrodach przedczołowych (Fp1, Fp2).
+
+    Większa odporność modelu ML: Sieć EEGNet będzie trenowana na cechach odzwierciedlających faktyczne stany poznawcze mózgu, a nie na zakłóceniach otoczenia i fizjologii, co znacząco poprawi zdolność generalizacji modelu.
