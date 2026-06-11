@@ -1,0 +1,6 @@
+participant,rep,edf_path,impedance_csv,events_csv,session_config_json,image_on_events,edf_size_mb
+abc,1,dane\Wyniki\abc_raw.edf,dane\Wyniki\abc_imp.csv,dane\Wyniki\abc_EEGBasedVisualRecall_Events_Rep1_2026-05-27_11-04-56.csv,dane\Wyniki\abc_EEGBasedVisualRecall_SessionConfig_Rep1_2026-05-27_11-04-56.json,1320,292.99
+Bear,1,dane\Wyniki\Bear_raw.edf,dane\Wyniki\Bear_imp.csv,dane\Wyniki\Bear_EEGBasedVisualRecall_Events_Rep1_2026-05-29_10-34-33.csv,dane\Wyniki\Bear_EEGBasedVisualRecall_SessionConfig_Rep1_2026-05-29_10-34-33.json,2200,309.03
+fghx,1,dane\Wyniki\fghx_raw.edf,dane\Wyniki\fghx_imp.csv,dane\Wyniki\fghx_EEGBasedVisualRecall_Events_Rep1_2026-05-27_14-21-40.csv,dane\Wyniki\fghx_EEGBasedVisualRecall_SessionConfig_Rep1_2026-05-27_14-21-40.json,2640,324.37
+mole,2,dane\Wyniki\mole_0004_raw.edf,dane\Wyniki\mole_0004_imp.csv,dane\Wyniki\mole_EEGBasedVisualRecall_Events_Rep2_2026-05-22_11-27-28.csv,dane\Wyniki\mole_EEGBasedVisualRecall_SessionConfig_Rep2_2026-05-22_11-27-28.json,1980,316.73
+Reshi,1,dane\Wyniki\Reshi_raw.edf,dane\Wyniki\Reshi_imp.csv,dane\Wyniki\Reshi_EEGBasedVisualRecall_Events_Rep1_2026-05-28_09-40-36.csv,dane\Wyniki\Reshi_EEGBasedVisualRecall_SessionConfig_Rep1_2026-05-28_09-40-36.json,1980,310.64
