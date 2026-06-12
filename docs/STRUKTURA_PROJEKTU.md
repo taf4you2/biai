@@ -32,6 +32,7 @@ Buildery epok zapisuja dodatkowo raporty QC:
 - `scripts/train_eegnet.py` - trenuje EEGNet na surowych epokach; obsluguje split po seriach, uczestniku, obrazie i losowy oraz permutacje etykiet jako negative control.
 - `scripts/run_eegnet_window_sweep.py` - uruchamia EEGNet dla wielu datasetow okien czasowych.
 - `scripts/run_eegnet_participant_loo.py` - uruchamia leave-one-participant-out dla EEGNet.
+- `scripts/run_eegnet_participant_image.py` - uruchamia EEGNet dla splitu held-out participant + held-out `image_id` po wszystkich uczestnikach.
 - `scripts/train_epoch_bandpower_baseline.py` - klasyczny baseline logistyczny na pasmach mocy z surowych epok.
 - `scripts/train_spectrogram_baseline.py` - prosty baseline klasyczny na spektrogramach.
 - `scripts/train_spectrogram_cnn.py` - maly CNN na spektrogramach EEG.
@@ -138,6 +139,12 @@ Split jednoczesnie po uczestniku i niewidzianych obrazach:
 
 ```powershell
 python .\scripts\train_eegnet.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --split participant_image --test-participant mole --epochs 12 --batch-size 256
+```
+
+Pelny sweep splitu `participant_image` po uczestnikach:
+
+```powershell
+python .\scripts\run_eegnet_participant_image.py --dataset-dir event_epoch_multisession_image_on_0_0p8_qc --results-parent eegnet_participant_image_qc_sweep_results --epochs 12 --batch-size 256 --only-qc-accepted --cpu --force
 ```
 
 Baseline bandpower na surowych epokach:

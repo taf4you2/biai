@@ -5,10 +5,31 @@ from pathlib import Path
 import pandas as pd
 
 
+SUMMARY_COLUMNS = [
+    "test_participant",
+    "samples",
+    "train_samples",
+    "validation_samples",
+    "test_samples",
+    "input_shape",
+    "best_epoch",
+    "best_validation_accuracy",
+    "best_test_accuracy",
+    "final_test_accuracy",
+    "normalization",
+    "balanced_sampler",
+    "label_control",
+    "only_qc_accepted",
+    "split",
+    "validation_split",
+    "test_selected_by",
+]
+
+
 def extract_test_participant(split_description, result_dir_name):
     marker = "test participant:"
     if marker in split_description:
-        return split_description.split(marker, 1)[1].strip()
+        return split_description.split(marker, 1)[1].split(";", 1)[0].strip()
     if result_dir_name.startswith("test_"):
         return result_dir_name[5:]
     return result_dir_name
@@ -42,6 +63,9 @@ def aggregate(results_dir):
                 "test_selected_by": summary.get("test_selected_by", "test_accuracy"),
             }
         )
+
+    if not rows:
+        return pd.DataFrame(columns=SUMMARY_COLUMNS)
 
     results = pd.DataFrame(rows).sort_values("test_participant")
     if not results.empty:

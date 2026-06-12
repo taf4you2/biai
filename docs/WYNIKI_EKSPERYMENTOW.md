@@ -50,6 +50,7 @@ Wszystkie odrzucenia byly przez prog `peak-to-peak`; nie bylo epok z `NaN/inf` a
 | Eksperyment | Wynik testowy | Wynik walidacyjny | Interpretacja |
 |---|---:|---:|---|
 | LOO po uczestniku, QC + normalizacja per uczestnik + sampler `category_participant` | 19.13% | 18.86% | Wynik rosnie wzgledem najlepszego wariantu bez QC `17.76%`, wiec sygnal utrzymuje sie po odrzuceniu artefaktowych epok. |
+| Split `participant_image`, wszyscy uczestnicy, QC, EEGNet | 16.94% | 19.40% | Najmocniejszy dotad test generalizacji: held-out participant i held-out `image_id` jednoczesnie dla kazdego uczestnika. |
 | Split `participant_image`, test `mole`, QC, EEGNet | 20.42% | 17.14% | Mocniejszy test: held-out participant i held-out `image_id` jednoczesnie; wynik nadal wyraznie ponad losowy. |
 | Split `participant_image`, test `mole`, QC, baseline bandpower | 11.71% | n/a | Klasyczne pasma mocy sa tylko lekko ponad losowe i duzo slabsze od EEGNet. |
 
@@ -61,7 +62,7 @@ Wszystkie odrzucenia byly przez prog `peak-to-peak`; nie bylo epok z `NaN/inf` a
 - Normalizacja per uczestnik z samplerem `category_participant` podnosi LOO z `17.19%` do `17.76%`, wiec jest lekko lepszym wariantem treningowym, ale poprawa jest niewielka.
 - Split po `image_id` daje `20.80%`, wiec model nie opiera sie wylacznie na zapamietaniu konkretnych obrazow z treningu.
 - Po QC epok LOO wzrasta do `19.13%`, co wzmacnia interpretacje, ze poprzedni sygnal nie byl prostym efektem artefaktow wysokiej amplitudy.
-- Split `participant_image` na QC daje `20.42%` dla `mole`, ale trzeba go powtorzyc dla pozostalych uczestnikow, zanim stanie sie glowna metryka.
+- Pelny split `participant_image` na QC daje srednio `16.94%`, czyli mniej niz LOO QC, ale nadal wyraznie powyzej losowych `9.09%`.
 
 ## Pliki wynikowe
 
@@ -74,11 +75,12 @@ Wszystkie odrzucenia byly przez prog `peak-to-peak`; nie bylo epok z `NaN/inf` a
 - `event_epoch_multisession_image_on_0_0p8_qc/epoch_qc_summary.csv`
 - `event_epoch_multisession_image_on_0_0p8_qc/session_summary.csv`
 - `eegnet_multisession_results_qc/participant_loo_summary.csv`
+- `eegnet_participant_image_qc_sweep_results/participant_image_summary.csv`
 - `eegnet_participant_image_qc_results/eegnet_summary.json`
 - `baseline_epoch_bandpower_qc_results/bandpower_baseline_summary.json`
 
 ## Nastepne sensowne kroki
 
-- Powtorzyc split `participant_image` dla kazdego uczestnika, nie tylko dla `mole`.
 - Dodac kontrole negatywne dla datasetu QC: permutacja etykiet i losowe okna po takim samym QC.
 - Sprawdzic wariant progow QC, np. `150 uV` vs `200 uV`, zeby ocenic stabilnosc wyniku.
+- Uruchomic baseline bandpower dla pelnego sweepu `participant_image`, zeby porownac EEGNet i klasyczne cechy per uczestnik.
