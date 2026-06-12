@@ -61,6 +61,10 @@
     - Split: leave-one-participant-out.
     - Checkpoint wybierany po walidacji.
     - Wynik: mean test accuracy `17.19%`.
+- **LOO z normalizacja per uczestnik i samplerem**:
+    - Uruchomiono `--normalization participant --balanced-sampler category_participant`.
+    - Wynik: mean test accuracy `17.76%`.
+    - Interpretacja: lekka poprawa wzgledem bazowego LOO, ok. `+0.58 pp`.
 - **Permutacja etykiet**:
     - Uruchomiono LOO z `--label-control permute`.
     - Wynik: mean test accuracy `8.93%`.

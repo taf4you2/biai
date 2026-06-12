@@ -20,6 +20,7 @@ Poziom losowy dla 11 klas:
 | Eksperyment | Wynik testowy | Wynik walidacyjny | Interpretacja |
 |---|---:|---:|---|
 | LOO po uczestniku, checkpoint wybierany po walidacji | 17.19% | 16.84% | Sygnal zostaje ponad losowym po usunieciu wyboru checkpointu po tescie. |
+| LOO po uczestniku, normalizacja per uczestnik + sampler `category_participant` | 17.76% | 17.51% | Lekka poprawa wzgledem bazowego LOO, ok. +0.58 pp. |
 | LOO po uczestniku, permutacja etykiet | 8.93% | 9.76% | Kontrola spada do poziomu losowego. |
 | LOO po uczestniku, losowe okna EEG | 9.20% | 9.83% | Losowe fragmenty sygnalu nie niosa uzytecznej informacji o klasie. |
 | Split po `image_id` | 20.80% | 23.15% | Model generalizuje ponad losowo rowniez na niewidziane obrazy, choc to nie jest LOO po uczestniku. |
@@ -29,11 +30,13 @@ Poziom losowy dla 11 klas:
 - Wczesniejsze wyniki nie wygladaja na prosty efekt przecieku etykiet, bo permutacja etykiet daje `8.93%`.
 - Wynik nie wyglada tez na sam dryft sesji albo przypadkowy kontekst czasowy, bo losowe okna daja `9.20%`.
 - Po poprawnym wyborze checkpointu po walidacji LOO spada z historycznego `18.83%` do `17.19%`, ale nadal jest wyraznie ponad losowy baseline.
+- Normalizacja per uczestnik z samplerem `category_participant` podnosi LOO z `17.19%` do `17.76%`, wiec jest lekko lepszym wariantem treningowym, ale poprawa jest niewielka.
 - Split po `image_id` daje `20.80%`, wiec model nie opiera sie wylacznie na zapamietaniu konkretnych obrazow z treningu.
 
 ## Pliki wynikowe
 
 - `eegnet_multisession_results_validated/participant_loo_summary.csv`
+- `eegnet_multisession_results_validated_participant_balanced/participant_loo_summary.csv`
 - `eegnet_multisession_results_permuted/participant_loo_summary.csv`
 - `eegnet_random_control_results/participant_loo_summary.csv`
 - `eegnet_image_split_results/eegnet_summary.json`
@@ -41,6 +44,6 @@ Poziom losowy dla 11 klas:
 
 ## Nastepne sensowne kroki
 
-- Powtorzyc najlepszy LOO z `--normalization participant --balanced-sampler category_participant` juz w trybie z walidacja.
 - Uruchomic split mieszany: held-out participant + held-out `image_id`, jesli dodamy taki tryb splitu.
 - Dodac raport QC epok: amplitudy, peak-to-peak, odrzucanie artefaktow i liczba odrzuconych probek per uczestnik.
+- Sprawdzic, czy poprawa `participant + category_participant` utrzymuje sie po dodaniu QC/odrzucania artefaktow.

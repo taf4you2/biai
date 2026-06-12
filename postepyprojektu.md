@@ -131,3 +131,14 @@ Wniosek:
 
 Weryfikacja:
 - Sprawdzono zawartosc `docs/LOG_PROJEKTU.md` po aktualizacji.
+
+### LOO z normalizacja per uczestnik i samplerem
+
+- Uruchomiono rekomendowany wariant:
+  `python .\scripts\run_eegnet_participant_loo.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --results-parent eegnet_multisession_results_validated_participant_balanced --epochs 12 --batch-size 256 --normalization participant --balanced-sampler category_participant --force`.
+- Wynik: mean test accuracy `17.76%`, mean validation accuracy `17.51%`.
+- Porownanie do bazowego LOO z walidacja: `17.76%` vs `17.19%`, czyli poprawa o ok. `+0.58 pp`.
+- Zaktualizowano `docs/WYNIKI_EKSPERYMENTOW.md` o nowy wariant i plik wynikowy.
+
+Wniosek:
+- `--normalization participant --balanced-sampler category_participant` jest aktualnie najlepszym sprawdzonym wariantem LOO, ale poprawa jest mala i wymaga dalszej walidacji po QC epok.
