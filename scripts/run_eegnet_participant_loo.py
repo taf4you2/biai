@@ -53,6 +53,8 @@ def run_loo(args):
             "--balanced-sampler",
             args.balanced_sampler,
         ]
+        if args.only_qc_accepted:
+            command.append("--only-qc-accepted")
         if args.cpu:
             command.append("--cpu")
         if args.no_preload:
@@ -82,6 +84,7 @@ def parse_args():
     parser.add_argument("--label-control", choices=["none", "permute"], default="none")
     parser.add_argument("--normalization", choices=["global", "participant", "epoch"], default="global")
     parser.add_argument("--balanced-sampler", choices=["none", "category", "participant", "category_participant"], default="none")
+    parser.add_argument("--only-qc-accepted", action="store_true")
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--no-preload", action="store_true")
     parser.add_argument("--force", action="store_true")

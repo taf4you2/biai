@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from build_event_epoch_dataset import add_epoch_qc_args, compute_epoch_qc, write_epoch_qc_reports
 from build_event_spectrogram_dataset import prepare_raw
 
 
@@ -62,6 +63,8 @@ def build_dataset(args):
     if "participant" in metadata.columns:
         session_keys.insert(0, "participant")
 
+    qc_rows = []
+
     for session_values, session_df in metadata.groupby(session_keys, dropna=False):
         if not isinstance(session_values, tuple):
             session_values = (session_values,)
@@ -91,22 +94,12 @@ def build_dataset(args):
             start, stop, epoch = sample_random_epoch(raw, expected_samples, rng)
             stem = f"{participant}_random_{row_idx:05d}"
             epoch_path = participant_dir / f"{stem}.npz"
-            np.savez_compressed(
-                epoch_path,
-                epoch=epoch,
-                times=times,
-                channels=np.array(raw.ch_names),
-                sfreq=np.array([sfreq], dtype=np.float32),
-                random_start_sample=np.array([start], dtype=np.int64),
-                random_stop_sample=np.array([stop], dtype=np.int64),
-            )
-
+            qc = compute_epoch_qc(epoch, raw.ch_names, args)
             new_row = row.to_dict()
             new_row.update(
                 {
                     "control_type": "random_epoch",
                     "reference_epoch_path": row["epoch_path"],
-                    "epoch_path": str(epoch_path),
                     "random_start_sample": start,
                     "random_stop_sample": stop,
                     "tmin": 0.0,
@@ -117,7 +110,29 @@ def build_dataset(args):
             )
             if "participant" not in new_row:
                 new_row["participant"] = participant
+
+            new_row.update(qc)
+            qc_metadata = new_row.copy()
+            qc_metadata.update({"epoch_path": str(epoch_path), "qc_saved": False})
+
+            if args.drop_rejected and not qc["qc_accepted"]:
+                qc_rows.append(qc_metadata)
+                continue
+
+            np.savez_compressed(
+                epoch_path,
+                epoch=epoch,
+                times=times,
+                channels=np.array(raw.ch_names),
+                sfreq=np.array([sfreq], dtype=np.float32),
+                random_start_sample=np.array([start], dtype=np.int64),
+                random_stop_sample=np.array([stop], dtype=np.int64),
+            )
+
+            new_row.update({"epoch_path": str(epoch_path), "qc_saved": True})
             all_rows.append(new_row)
+            qc_metadata.update({"qc_saved": True})
+            qc_rows.append(qc_metadata)
             saved += 1
 
         session_summaries.append(
@@ -133,6 +148,7 @@ def build_dataset(args):
 
     pd.DataFrame(all_rows).to_csv(output_dir / "metadata.csv", index=False)
     pd.DataFrame(session_summaries).to_csv(output_dir / "session_summary.csv", index=False)
+    write_epoch_qc_reports(qc_rows, output_dir)
     with (output_dir / "config.json").open("w", encoding="utf-8") as f:
         json.dump(vars(args), f, indent=2)
 
@@ -149,6 +165,7 @@ def parse_args():
     parser.add_argument("--reject-threshold", type=float, default=0.5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-rows", type=int, default=None)
+    add_epoch_qc_args(parser)
     return parser.parse_args()
 
 

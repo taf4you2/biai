@@ -48,6 +48,8 @@ def run_sweep(args):
             "--label-control",
             args.label_control,
         ]
+        if args.only_qc_accepted:
+            command.append("--only-qc-accepted")
         if args.cpu:
             command.append("--cpu")
         run_command(command)
@@ -68,12 +70,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train EEGNet across all window datasets in a directory.")
     parser.add_argument("--dataset-parent", default="event_epoch_window_grid_fine")
     parser.add_argument("--results-parent", default="eegnet_window_results_fine")
-    parser.add_argument("--split", choices=["series", "random", "image"], default="series")
+    parser.add_argument("--split", choices=["series", "random", "image", "participant_image"], default="series")
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--val-size", type=float, default=0.2)
     parser.add_argument("--val-split", choices=["auto", "random", "series", "participant"], default="auto")
     parser.add_argument("--label-control", choices=["none", "permute"], default="none")
+    parser.add_argument("--only-qc-accepted", action="store_true")
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--force", action="store_true")
     return parser.parse_args()

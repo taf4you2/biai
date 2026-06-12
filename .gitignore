@@ -10,13 +10,16 @@ event_epoch_dataset
 event_epoch_dataset_*
 event_epoch_window_grid/
 event_epoch_window_grid_fine/
+event_epoch_window_grid*/
 event_epoch_multisession_*/
 event_epoch_random_control*/
 __pycache__/
 *.pyc
 baseline_results/
+baseline_epoch_bandpower*/
 cnn_results/
 eegnet_results/
+eegnet_*smoke*/
 eegnet_window_results/
 eegnet_window_results_fine/
 eegnet_multisession_results/

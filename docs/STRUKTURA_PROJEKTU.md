@@ -22,11 +22,17 @@ Kod Pythona do przetwarzania danych, budowania datasetow, trenowania modeli i ag
 - `scripts/build_multi_session_epoch_dataset.py` - buduje dataset surowych epok z wielu sesji/uczestnikow.
 - `scripts/build_random_epoch_control_dataset.py` - buduje kontrolny dataset losowych okien EEG dopasowany do istniejacego datasetu eventowego.
 
+Buildery epok zapisuja dodatkowo raporty QC:
+- `epoch_qc.csv` - metryki jakosci kazdej kandydackiej epoki.
+- `epoch_qc_summary.csv` - podsumowanie odrzucen, amplitud peak-to-peak i flatline.
+- kolumny `qc_accepted`, `qc_reject_reason`, `qc_ptp_max_uv`, `qc_max_abs_uv` w `metadata.csv`.
+
 ### Trening i ewaluacja
 
 - `scripts/train_eegnet.py` - trenuje EEGNet na surowych epokach; obsluguje split po seriach, uczestniku, obrazie i losowy oraz permutacje etykiet jako negative control.
 - `scripts/run_eegnet_window_sweep.py` - uruchamia EEGNet dla wielu datasetow okien czasowych.
 - `scripts/run_eegnet_participant_loo.py` - uruchamia leave-one-participant-out dla EEGNet.
+- `scripts/train_epoch_bandpower_baseline.py` - klasyczny baseline logistyczny na pasmach mocy z surowych epok.
 - `scripts/train_spectrogram_baseline.py` - prosty baseline klasyczny na spektrogramach.
 - `scripts/train_spectrogram_cnn.py` - maly CNN na spektrogramach EEG.
 
@@ -98,6 +104,12 @@ Budowa datasetu multi-session:
 python .\scripts\build_multi_session_epoch_dataset.py
 ```
 
+Budowa datasetu multi-session z odrzuceniem epok nieprzechodzacych QC:
+
+```powershell
+python .\scripts\build_multi_session_epoch_dataset.py --output-dir event_epoch_multisession_image_on_0_0p8_qc --drop-rejected
+```
+
 Budowa kontrolnego datasetu losowych okien:
 
 ```powershell
@@ -110,10 +122,28 @@ Szybki trening EEGNet:
 python .\scripts\train_eegnet.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --split participant --test-participant mole --epochs 12 --batch-size 256
 ```
 
+Trening EEGNet tylko na epokach zaakceptowanych przez QC:
+
+```powershell
+python .\scripts\train_eegnet.py --dataset-dir event_epoch_multisession_image_on_0_0p8_qc --split participant --test-participant mole --epochs 12 --batch-size 256 --only-qc-accepted
+```
+
 Trening kontrolny z permutacja etykiet:
 
 ```powershell
 python .\scripts\train_eegnet.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --split participant --test-participant mole --label-control permute --epochs 12 --batch-size 256
+```
+
+Split jednoczesnie po uczestniku i niewidzianych obrazach:
+
+```powershell
+python .\scripts\train_eegnet.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --split participant_image --test-participant mole --epochs 12 --batch-size 256
+```
+
+Baseline bandpower na surowych epokach:
+
+```powershell
+python .\scripts\train_epoch_bandpower_baseline.py --dataset-dir event_epoch_multisession_image_on_0_0p8 --split participant_image --test-participant mole
 ```
 
 Leave-one-participant-out:

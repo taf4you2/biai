@@ -154,10 +154,20 @@ def seed_everything(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-def load_metadata(dataset_dir):
+def truthy_series(series):
+    if series.dtype == bool:
+        return series.fillna(False)
+    return series.astype(str).str.lower().isin({"true", "1", "yes"})
+
+
+def load_metadata(dataset_dir, only_qc_accepted=False):
     metadata = pd.read_csv(Path(dataset_dir) / "metadata.csv")
     metadata = metadata[metadata["image_category"].notna()].copy()
     metadata = metadata[metadata["epoch_path"].notna()].copy()
+    if only_qc_accepted:
+        if "qc_accepted" not in metadata.columns:
+            raise ValueError("--only-qc-accepted requires a metadata.csv column named 'qc_accepted'")
+        metadata = metadata[truthy_series(metadata["qc_accepted"])].copy()
     return metadata
 
 
@@ -190,6 +200,43 @@ def split_metadata(metadata, args):
         train_df = metadata.loc[~test_mask].copy()
         test_df = metadata.loc[test_mask].copy()
         return train_df, test_df, f"leave-one-participant; test participant: {test_participant}"
+
+    if args.split == "participant_image":
+        required = {"participant", "image_id"}
+        missing = required - set(metadata.columns)
+        if missing:
+            raise ValueError(f"participant_image split requires metadata columns: {sorted(missing)}")
+        participants = sorted(str(value) for value in metadata["participant"].dropna().unique())
+        test_participant = args.test_participant or participants[-1]
+        if test_participant not in participants:
+            raise ValueError(f"Unknown test participant {test_participant!r}; available: {participants}")
+
+        participant_mask = metadata["participant"].astype(str) == test_participant
+        participant_df = metadata.loc[participant_mask].copy()
+        groups = participant_df["image_id"].astype(str).to_numpy()
+        if len(set(groups)) < 2:
+            raise ValueError("participant_image split requires at least two image_id groups for the test participant")
+
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.test_size, random_state=args.seed)
+        _, test_idx = next(splitter.split(participant_df, participant_df["image_category"], groups=groups))
+        test_df = participant_df.iloc[test_idx].copy()
+        test_images = set(test_df["image_id"].astype(str))
+
+        image_ids = metadata["image_id"].astype(str)
+        train_mask = (~participant_mask) & (~image_ids.isin(test_images))
+        train_df = metadata.loc[train_mask].copy()
+        excluded_count = int(len(metadata) - len(train_df) - len(test_df))
+        if train_df.empty or test_df.empty:
+            raise ValueError("participant_image split produced an empty train or test set")
+        return (
+            train_df,
+            test_df,
+            (
+                "held-out participant + held-out image_id; "
+                f"test participant: {test_participant}; "
+                f"test images: {len(test_images)}; excluded samples: {excluded_count}"
+            ),
+        )
 
     if args.split == "series" and "series_id" in metadata.columns:
         groups = metadata["series_id"].fillna(-1).astype(int).to_numpy()
@@ -351,7 +398,7 @@ def train(args):
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    metadata = load_metadata(args.dataset_dir)
+    metadata = load_metadata(args.dataset_dir, args.only_qc_accepted)
     metadata, label_control_description = apply_label_control(metadata, args)
     train_df, test_df, split_description = split_metadata(metadata, args)
     train_df, val_df, validation_description = split_validation_metadata(train_df, args)
@@ -447,6 +494,7 @@ def train(args):
     print(f"Split: {split_description}")
     print(f"Validation split: {validation_description}")
     print(f"Label control: {label_control_description}")
+    print(f"Only QC accepted: {args.only_qc_accepted}")
     print(f"Normalization: {args.normalization}")
     print(f"Balanced sampler: {args.balanced_sampler}")
     print(f"Input shape: {tuple(first_x.shape)}")
@@ -493,7 +541,8 @@ def train(args):
         model.load_state_dict(best_state)
 
     test_loss, test_acc, y_true, y_pred = evaluate(model, test_loader, device)
-    matrix = confusion_matrix(y_true, y_pred)
+    label_ids = np.arange(len(labels))
+    matrix = confusion_matrix(y_true, y_pred, labels=label_ids)
     matrix_df = pd.DataFrame(matrix, index=labels, columns=labels)
 
     torch.save(
@@ -521,6 +570,7 @@ def train(args):
         "validation_split": validation_description,
         "label_control": args.label_control,
         "label_control_description": label_control_description,
+        "only_qc_accepted": bool(args.only_qc_accepted),
         "normalization": args.normalization,
         "balanced_sampler": args.balanced_sampler,
         "labels": labels.tolist(),
@@ -542,6 +592,7 @@ def train(args):
         f.write(f"Split: {split_description}\n")
         f.write(f"Validation split: {validation_description}\n")
         f.write(f"Label control: {label_control_description}\n")
+        f.write(f"Only QC accepted: {args.only_qc_accepted}\n")
         f.write(f"Normalization: {args.normalization}\n")
         f.write(f"Balanced sampler: {args.balanced_sampler}\n")
         f.write(f"Input shape: {tuple(first_x.shape)}\n")
@@ -550,7 +601,7 @@ def train(args):
             f.write(f"Best validation loss: {best_val_loss:.4f}\n")
         f.write(f"Best epoch: {best_epoch}\n")
         f.write(f"Final test accuracy: {test_acc:.4f}\n\n")
-        f.write(classification_report(y_true, y_pred, target_names=labels, zero_division=0))
+        f.write(classification_report(y_true, y_pred, labels=label_ids, target_names=labels, zero_division=0))
         f.write("\nConfusion matrix:\n")
         f.write(matrix_df.to_string())
         f.write("\n")
@@ -567,7 +618,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train EEGNet on trigger-aligned raw EEG epochs.")
     parser.add_argument("--dataset-dir", default="event_epoch_dataset")
     parser.add_argument("--output-dir", default="eegnet_results")
-    parser.add_argument("--split", choices=["series", "random", "participant", "image"], default="series")
+    parser.add_argument("--split", choices=["series", "random", "participant", "image", "participant_image"], default="series")
     parser.add_argument("--test-participant", default=None)
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--val-size", type=float, default=0.2)
@@ -584,6 +635,7 @@ def parse_args():
     parser.add_argument("--kernel-length", type=int, default=128)
     parser.add_argument("--normalization", choices=["global", "participant", "epoch"], default="global")
     parser.add_argument("--balanced-sampler", choices=["none", "category", "participant", "category_participant"], default="none")
+    parser.add_argument("--only-qc-accepted", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--no-preload", action="store_true")

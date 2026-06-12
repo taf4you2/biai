@@ -25,6 +25,7 @@ def aggregate(results_dir):
                 "best_test_accuracy": summary.get("best_test_accuracy", summary["final_test_accuracy"]),
                 "final_test_accuracy": summary["final_test_accuracy"],
                 "label_control": summary.get("label_control", "none"),
+                "only_qc_accepted": summary.get("only_qc_accepted", False),
                 "split": summary["split"],
                 "validation_split": summary.get("validation_split", ""),
                 "test_selected_by": summary.get("test_selected_by", "test_accuracy"),

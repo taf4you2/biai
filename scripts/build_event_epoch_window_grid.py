@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from build_event_epoch_dataset import make_stem
+from build_event_epoch_dataset import add_epoch_qc_args, compute_epoch_qc, make_stem, write_epoch_qc_reports
 from build_event_spectrogram_dataset import (
     attach_event_metadata,
     events_from_annotations,
@@ -65,6 +65,7 @@ def write_window_dataset(raw, annotation_events, events, spec, output_parent, ar
     expected_samples = stop_offset - start_offset
     times = np.arange(expected_samples, dtype=np.float32) / sfreq + spec["tmin"]
     metadata_rows = []
+    qc_rows = []
 
     for row_idx, row in target_events.reset_index(drop=True).iterrows():
         start = int(row["sample"]) + start_offset
@@ -76,8 +77,26 @@ def write_window_dataset(raw, annotation_events, events, spec, output_parent, ar
         if epoch.shape[1] != expected_samples:
             continue
 
+        qc = compute_epoch_qc(epoch, raw.ch_names, args)
         stem = make_stem(row_idx, spec["event_code"], row)
         epoch_path = epoch_dir / f"{stem}.npz"
+        metadata = row.to_dict()
+        metadata.update(
+            {
+                "window_name": spec["name"],
+                "tmin": spec["tmin"],
+                "tmax": spec["tmax"],
+                "epoch_shape": "x".join(str(dim) for dim in epoch.shape),
+            }
+        )
+        metadata.update(qc)
+        qc_metadata = metadata.copy()
+        qc_metadata.update({"epoch_path": str(epoch_path), "qc_saved": False})
+
+        if args.drop_rejected and not qc["qc_accepted"]:
+            qc_rows.append(qc_metadata)
+            continue
+
         np.savez_compressed(
             epoch_path,
             epoch=epoch,
@@ -86,27 +105,29 @@ def write_window_dataset(raw, annotation_events, events, spec, output_parent, ar
             sfreq=np.array([sfreq], dtype=np.float32),
         )
 
-        metadata = row.to_dict()
-        metadata.update(
-            {
-                "epoch_path": str(epoch_path),
-                "window_name": spec["name"],
-                "tmin": spec["tmin"],
-                "tmax": spec["tmax"],
-                "epoch_shape": "x".join(str(dim) for dim in epoch.shape),
-            }
-        )
+        metadata.update({"epoch_path": str(epoch_path), "qc_saved": True})
         metadata_rows.append(metadata)
+        qc_metadata.update({"qc_saved": True})
+        qc_rows.append(qc_metadata)
 
     pd.DataFrame(metadata_rows).to_csv(output_dir / "metadata.csv", index=False)
+    write_epoch_qc_reports(qc_rows, output_dir)
     config = vars(args).copy()
     config.update(spec)
     with (output_dir / "config.json").open("w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
     shape = metadata_rows[0]["epoch_shape"] if metadata_rows else "n/a"
-    print(f"{spec['name']}: saved {len(metadata_rows)} epochs, shape {shape}")
-    return {"window_name": spec["name"], "samples": len(metadata_rows), "epoch_shape": shape, **spec}
+    rejected = sum(not row["qc_accepted"] for row in qc_rows)
+    print(f"{spec['name']}: saved {len(metadata_rows)} epochs, shape {shape}, QC rejected {rejected}/{len(qc_rows)}")
+    return {
+        "window_name": spec["name"],
+        "samples": len(metadata_rows),
+        "qc_candidate_epochs": len(qc_rows),
+        "qc_rejected_epochs": rejected,
+        "epoch_shape": shape,
+        **spec,
+    }
 
 
 def build_grid(args):
@@ -154,6 +175,7 @@ def parse_args():
     parser.add_argument("--reject-threshold", type=float, default=0.5)
     parser.add_argument("--max-trials", type=int, default=None)
     parser.add_argument("--strict-event-qc", action="store_true")
+    add_epoch_qc_args(parser)
     return parser.parse_args()
 
 

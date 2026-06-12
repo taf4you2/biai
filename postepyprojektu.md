@@ -142,3 +142,52 @@ Weryfikacja:
 
 Wniosek:
 - `--normalization participant --balanced-sampler category_participant` jest aktualnie najlepszym sprawdzonym wariantem LOO, ale poprawa jest mala i wymaga dalszej walidacji po QC epok.
+
+### Aktualizacja notebooka Jupyter
+
+- Uzupelniono `notebooks/DZIENNIK_PROJEKTU_EEG.ipynb` o sekcje 17-21:
+  - poprawiona metodologia z wyborem checkpointu po walidacji,
+  - kontrole negatywne: permutacja etykiet i losowe okna EEG,
+  - split po niewidzianych `image_id`,
+  - aktualnie najlepszy wariant LOO `participant + category_participant`,
+  - aktualne pliki wynikowe i nastepne kroki.
+- Notebook zawiera teraz najnowsze wyniki: LOO `17.19%`, permutacja `8.93%`, losowe okna `9.20%`, split po `image_id` `20.80%`, participant-balanced `17.76%`.
+
+Weryfikacja:
+- Sprawdzono, ze `notebooks/DZIENNIK_PROJEKTU_EEG.ipynb` jest poprawnym JSON-em i ma `28` komorek.
+
+### QC epok, split participant-image i baseline bandpower
+
+- Dodano raportowanie QC epok do builderow datasetow epok:
+  - `metadata.csv` dostaje kolumny `qc_accepted`, `qc_reject_reason`, `qc_ptp_max_uv`, `qc_max_abs_uv`, `qc_flat_channel_count`,
+  - `epoch_qc.csv` zapisuje metryki dla kandydackich epok,
+  - `epoch_qc_summary.csv` zapisuje podsumowanie odrzucen i amplitud.
+- Dodano opcjonalne `--drop-rejected` w builderach epok i `--only-qc-accepted` w treningu EEGNet oraz skryptach batchowych.
+- Dodano split `--split participant_image` w `scripts/train_eegnet.py`: test jest na wybranym uczestniku oraz obrazach usunietych z treningu u pozostalych uczestnikow.
+- Utworzono `scripts/train_epoch_bandpower_baseline.py`, czyli klasyczny baseline logistyczny na pasmach mocy `delta/theta/alpha/beta/gamma`.
+- Utwardzono raport EEGNet na male testy, w ktorych nie wszystkie klasy wystepuja w `y_true`/`y_pred`.
+- Zaktualizowano `docs/STRUKTURA_PROJEKTU.md` o nowe raporty QC, komendy i baseline bandpower.
+
+Dotkniete pliki:
+- `.gitignore`
+- `scripts/build_event_epoch_dataset.py`
+- `scripts/build_multi_session_epoch_dataset.py`
+- `scripts/build_event_epoch_window_grid.py`
+- `scripts/build_random_epoch_control_dataset.py`
+- `scripts/train_eegnet.py`
+- `scripts/run_eegnet_participant_loo.py`
+- `scripts/run_eegnet_window_sweep.py`
+- `scripts/aggregate_participant_loo_results.py`
+- `scripts/aggregate_eegnet_window_results.py`
+- `scripts/train_epoch_bandpower_baseline.py`
+- `docs/STRUKTURA_PROJEKTU.md`
+- `postepyprojektu.md`
+
+Weryfikacja:
+- `python -m py_compile scripts\build_event_epoch_dataset.py scripts\build_multi_session_epoch_dataset.py scripts\build_event_epoch_window_grid.py scripts\build_random_epoch_control_dataset.py scripts\train_eegnet.py scripts\run_eegnet_participant_loo.py scripts\run_eegnet_window_sweep.py scripts\aggregate_participant_loo_results.py scripts\aggregate_eegnet_window_results.py scripts\train_epoch_bandpower_baseline.py`
+- Smoke datasetu QC: `python scripts\build_event_epoch_dataset.py --edf dane\Wyniki\mole_0004_raw.edf --events-csv dane\Wyniki\mole_EEGBasedVisualRecall_Events_Rep2_2026-05-22_11-27-28.csv --impedance-csv dane\Wyniki\mole_0004_imp.csv --output-dir event_epoch_dataset_qc_smoke --tmin 0.0 --tmax 0.8 --max-trials 8`.
+- Smoke EEGNet QC: `python scripts\train_eegnet.py --dataset-dir event_epoch_dataset_qc_smoke --output-dir eegnet_qc_smoke --split image --epochs 1 --batch-size 4 --val-size 0 --only-qc-accepted --cpu`.
+- Smoke splitu `participant_image`: dla testowego `mole` uzyskano `train/test 6512/396`, `mole_in_train False`, `image_overlap 0`.
+- Smoke baseline bandpower: `python scripts\train_epoch_bandpower_baseline.py --dataset-dir event_epoch_dataset_qc_smoke --output-dir baseline_epoch_bandpower_qc_smoke --split image --only-qc-accepted`.
+- Smoke siatki okien: `python scripts\build_event_epoch_window_grid.py --edf dane\Wyniki\mole_0004_raw.edf --events-csv dane\Wyniki\mole_EEGBasedVisualRecall_Events_Rep2_2026-05-22_11-27-28.csv --impedance-csv dane\Wyniki\mole_0004_imp.csv --output-parent event_epoch_window_grid_qc_smoke --preset fine --only image_on_0_0p8 --max-trials 4`.
+- Smoke losowych okien: `python scripts\build_random_epoch_control_dataset.py --reference-dataset-dir event_epoch_multisession_image_on_0_0p8 --output-dir event_epoch_random_control_qc_smoke --max-rows 2`.
