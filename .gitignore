@@ -27,5 +27,6 @@ eegnet_multisession_results_*/
 eegnet_label_permute*/
 eegnet_random_control_results*/
 eegnet_image_split_results*/
+eegnet_participant_image*_results*/
 .venv/
 .venv*/
