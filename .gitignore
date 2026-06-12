@@ -11,6 +11,7 @@ event_epoch_dataset_*
 event_epoch_window_grid/
 event_epoch_window_grid_fine/
 event_epoch_multisession_*/
+event_epoch_random_control*/
 __pycache__/
 *.pyc
 baseline_results/
@@ -20,5 +21,8 @@ eegnet_window_results/
 eegnet_window_results_fine/
 eegnet_multisession_results/
 eegnet_multisession_results_*/
+eegnet_label_permute*/
+eegnet_random_control_results*/
+eegnet_image_split_results*/
 .venv/
 .venv*/

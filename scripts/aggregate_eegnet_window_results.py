@@ -17,14 +17,20 @@ def aggregate(results_dir):
                 "dataset": summary["dataset"],
                 "samples": summary["samples"],
                 "train_samples": summary["train_samples"],
+                "validation_samples": summary.get("validation_samples", ""),
                 "test_samples": summary["test_samples"],
                 "input_shape": "x".join(str(dim) for dim in summary["input_shape"]),
-                "best_test_accuracy": summary["best_test_accuracy"],
+                "best_epoch": summary.get("best_epoch", ""),
+                "best_validation_accuracy": summary.get("best_validation_accuracy", ""),
+                "best_test_accuracy": summary.get("best_test_accuracy", summary["final_test_accuracy"]),
                 "final_test_accuracy": summary["final_test_accuracy"],
+                "label_control": summary.get("label_control", "none"),
                 "split": summary["split"],
+                "validation_split": summary.get("validation_split", ""),
+                "test_selected_by": summary.get("test_selected_by", "test_accuracy"),
             }
         )
-    return pd.DataFrame(rows).sort_values("best_test_accuracy", ascending=False)
+    return pd.DataFrame(rows).sort_values("final_test_accuracy", ascending=False)
 
 
 def parse_args():

@@ -89,16 +89,27 @@ def events_from_annotations(raw):
                 "event_name": EVENT_NAME_BY_CODE[event_code],
             }
         )
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=["sample", "onset_s", "event_code", "event_name"])
+
+
+def load_csv_events(events_csv):
+    if not events_csv or not Path(events_csv).exists():
+        return pd.DataFrame(columns=["event_code"])
+
+    csv_events = pd.read_csv(events_csv)
+    if "event_code" not in csv_events.columns:
+        raise ValueError(f"Missing event_code column in {events_csv}")
+
+    csv_events = csv_events[csv_events["event_code"].notna()].copy()
+    csv_events["event_code"] = csv_events["event_code"].astype(int)
+    return csv_events
 
 
 def attach_event_metadata(annotation_events, events_csv):
-    if not events_csv or not Path(events_csv).exists():
-        return annotation_events
+    csv_events = load_csv_events(events_csv)
+    if csv_events.empty:
+        return annotation_events.copy()
 
-    csv_events = pd.read_csv(events_csv)
-    csv_events = csv_events[csv_events["event_code"].notna()].copy()
-    csv_events["event_code"] = csv_events["event_code"].astype(int)
     csv_events["_event_order"] = csv_events.groupby("event_code").cumcount()
 
     annotation_events = annotation_events.copy()
@@ -119,6 +130,82 @@ def attach_event_metadata(annotation_events, events_csv):
     metadata_cols = [col for col in metadata_cols if col in csv_events.columns]
     merged = annotation_events.merge(csv_events[metadata_cols], on=["event_code", "_event_order"], how="left")
     return merged.drop(columns=["_event_order"])
+
+
+def build_event_alignment_qc(annotation_events, events_csv, merged_events=None, event_codes=None):
+    csv_events = load_csv_events(events_csv)
+    if event_codes is None:
+        event_codes = sorted(EVENT_NAME_BY_CODE)
+
+    rows = []
+    for event_code in event_codes:
+        if "event_code" in annotation_events.columns:
+            annotation_count = int((annotation_events["event_code"] == event_code).sum())
+        else:
+            annotation_count = 0
+        csv_count = int((csv_events["event_code"] == event_code).sum()) if not csv_events.empty else 0
+
+        merged_count = None
+        missing_metadata_rows = None
+        if merged_events is not None and "event_code" in merged_events.columns:
+            merged_for_code = merged_events[merged_events["event_code"] == event_code]
+            merged_count = int(len(merged_for_code))
+            metadata_cols = [
+                col
+                for col in ["participant_id", "series_id", "trial_id", "image_id", "image_category"]
+                if col in merged_for_code.columns
+            ]
+            if metadata_cols:
+                missing_metadata_rows = int(merged_for_code[metadata_cols].isna().any(axis=1).sum())
+            else:
+                missing_metadata_rows = merged_count
+
+        if annotation_count == csv_count:
+            status = "ok"
+        elif annotation_count == 0:
+            status = "missing_edf_annotation"
+        elif csv_count == 0:
+            status = "missing_csv_event"
+        else:
+            status = "count_mismatch"
+
+        rows.append(
+            {
+                "event_code": event_code,
+                "event_name": EVENT_NAME_BY_CODE.get(event_code, ""),
+                "edf_annotation_count": annotation_count,
+                "csv_event_count": csv_count,
+                "count_delta_edf_minus_csv": annotation_count - csv_count,
+                "merged_count": merged_count,
+                "missing_metadata_rows": missing_metadata_rows,
+                "status": status,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def write_event_alignment_qc(annotation_events, events_csv, merged_events, output_path, target_event_code, strict=False):
+    qc = build_event_alignment_qc(annotation_events, events_csv, merged_events)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    qc.to_csv(output_path, index=False)
+
+    target_rows = qc[qc["event_code"] == target_event_code]
+    if not target_rows.empty:
+        target = target_rows.iloc[0]
+        has_missing_metadata = int(target.get("missing_metadata_rows") or 0) > 0
+        has_bad_count = target["status"] != "ok"
+        if has_bad_count or has_missing_metadata:
+            message = (
+                f"Event QC warning for code {target_event_code}: "
+                f"status={target['status']}, missing_metadata_rows={target['missing_metadata_rows']}"
+            )
+            if strict:
+                raise ValueError(message)
+            print(message)
+
+    return qc
 
 
 def compute_epoch_spectrogram(epoch_data, sfreq, fmin, fmax, nperseg, noverlap):
@@ -177,6 +264,14 @@ def build_dataset(args):
 
     annotation_events = events_from_annotations(raw)
     events = attach_event_metadata(annotation_events, args.events_csv)
+    write_event_alignment_qc(
+        annotation_events,
+        args.events_csv,
+        events,
+        output_dir / "event_alignment_qc.csv",
+        args.event_code,
+        strict=args.strict_event_qc,
+    )
     target_events = events[events["event_code"] == args.event_code].copy()
     if args.max_trials:
         target_events = target_events.head(args.max_trials)
@@ -262,6 +357,7 @@ def parse_args():
     parser.add_argument("--nperseg", type=int, default=256)
     parser.add_argument("--noverlap", type=int, default=224)
     parser.add_argument("--max-trials", type=int, default=None)
+    parser.add_argument("--strict-event-qc", action="store_true")
     return parser.parse_args()
 
 

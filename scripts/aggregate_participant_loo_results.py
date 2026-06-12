@@ -26,13 +26,19 @@ def aggregate(results_dir):
                 "test_participant": participant,
                 "samples": summary["samples"],
                 "train_samples": summary["train_samples"],
+                "validation_samples": summary.get("validation_samples", ""),
                 "test_samples": summary["test_samples"],
                 "input_shape": "x".join(str(dim) for dim in summary["input_shape"]),
-                "best_test_accuracy": summary["best_test_accuracy"],
+                "best_epoch": summary.get("best_epoch", ""),
+                "best_validation_accuracy": summary.get("best_validation_accuracy", ""),
+                "best_test_accuracy": summary.get("best_test_accuracy", summary["final_test_accuracy"]),
                 "final_test_accuracy": summary["final_test_accuracy"],
                 "normalization": summary.get("normalization", ""),
                 "balanced_sampler": summary.get("balanced_sampler", ""),
+                "label_control": summary.get("label_control", "none"),
                 "split": summary["split"],
+                "validation_split": summary.get("validation_split", ""),
+                "test_selected_by": summary.get("test_selected_by", "test_accuracy"),
             }
         )
 
@@ -42,13 +48,19 @@ def aggregate(results_dir):
             "test_participant": "MEAN",
             "samples": results["samples"].iloc[0],
             "train_samples": "",
+            "validation_samples": "",
             "test_samples": "",
             "input_shape": results["input_shape"].iloc[0],
+            "best_epoch": "",
+            "best_validation_accuracy": pd.to_numeric(results["best_validation_accuracy"], errors="coerce").mean(),
             "best_test_accuracy": results["best_test_accuracy"].mean(),
             "final_test_accuracy": results["final_test_accuracy"].mean(),
             "normalization": ",".join(sorted(set(str(value) for value in results["normalization"]))),
             "balanced_sampler": ",".join(sorted(set(str(value) for value in results["balanced_sampler"]))),
+            "label_control": ",".join(sorted(set(str(value) for value in results["label_control"]))),
             "split": "mean over participants",
+            "validation_split": ",".join(sorted(set(str(value) for value in results["validation_split"]))),
+            "test_selected_by": ",".join(sorted(set(str(value) for value in results["test_selected_by"]))),
         }
         results = pd.concat([results, pd.DataFrame([mean_row])], ignore_index=True)
     return results

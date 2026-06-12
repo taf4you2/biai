@@ -13,6 +13,32 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 
+def resolve_epoch_path(raw_path, dataset_dir):
+    dataset_dir = Path(dataset_dir)
+    epoch_path = Path(raw_path)
+    candidates = [epoch_path]
+
+    if not epoch_path.is_absolute():
+        candidates.append(dataset_dir / epoch_path)
+
+    parts = list(epoch_path.parts)
+    if "epochs" in parts:
+        epochs_idx = parts.index("epochs")
+        candidates.append(dataset_dir.joinpath(*parts[epochs_idx:]))
+
+    candidates.append(dataset_dir / "epochs" / epoch_path.name)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    matches = list((dataset_dir / "epochs").rglob(epoch_path.name))
+    if len(matches) == 1:
+        return matches[0]
+
+    raise FileNotFoundError(f"Could not resolve epoch path {raw_path!r} under {dataset_dir}")
+
+
 class EpochDataset(Dataset):
     def __init__(
         self,
@@ -48,10 +74,7 @@ class EpochDataset(Dataset):
         return len(self.metadata)
 
     def _resolve_epoch_path(self, raw_path):
-        epoch_path = Path(raw_path)
-        if epoch_path.exists():
-            return epoch_path
-        return self.dataset_dir / "epochs" / epoch_path.name
+        return resolve_epoch_path(raw_path, self.dataset_dir)
 
     def _load_item(self, idx):
         row = self.metadata.iloc[idx]
@@ -138,6 +161,23 @@ def load_metadata(dataset_dir):
     return metadata
 
 
+def apply_label_control(metadata, args):
+    if args.label_control == "none":
+        return metadata, "none"
+
+    metadata = metadata.copy()
+    metadata["original_image_category"] = metadata["image_category"]
+
+    if args.label_control == "permute":
+        rng = np.random.default_rng(args.seed)
+        shuffled = metadata["image_category"].to_numpy(copy=True)
+        rng.shuffle(shuffled)
+        metadata["image_category"] = shuffled
+        return metadata, f"permuted image_category with seed {args.seed}"
+
+    raise ValueError(f"Unknown label control: {args.label_control}")
+
+
 def split_metadata(metadata, args):
     if args.split == "participant":
         if "participant" not in metadata.columns:
@@ -160,6 +200,14 @@ def split_metadata(metadata, args):
         test_series = [int(series_id) for series_id in sorted(set(groups[test_idx]))]
         return train_df, test_df, f"grouped by series_id; test series: {test_series}"
 
+    if args.split == "image" and "image_id" in metadata.columns:
+        groups = metadata["image_id"].astype(str).to_numpy()
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.test_size, random_state=args.seed)
+        train_idx, test_idx = next(splitter.split(metadata, metadata["image_category"], groups=groups))
+        train_df = metadata.iloc[train_idx].copy()
+        test_df = metadata.iloc[test_idx].copy()
+        return train_df, test_df, f"grouped by image_id; test images: {len(set(groups[test_idx]))}"
+
     train_df, test_df = train_test_split(
         metadata,
         test_size=args.test_size,
@@ -169,6 +217,61 @@ def split_metadata(metadata, args):
     return train_df.copy(), test_df.copy(), "random stratified"
 
 
+def can_stratify(metadata, test_size):
+    counts = metadata["image_category"].value_counts()
+    if counts.empty or counts.min() < 2:
+        return False
+
+    if 0 < test_size < 1:
+        test_count = int(np.ceil(len(metadata) * test_size))
+    else:
+        test_count = int(test_size)
+    return test_count >= len(counts)
+
+
+def split_validation_metadata(train_df, args):
+    if args.val_size <= 0:
+        return train_df.copy(), None, "disabled"
+
+    val_split = args.val_split
+    if val_split == "auto":
+        participant_count = train_df["participant"].nunique() if "participant" in train_df.columns else 0
+        if args.split == "participant" and participant_count > 1:
+            val_split = "participant"
+        elif "series_id" in train_df.columns and train_df["series_id"].nunique() > 1:
+            val_split = "series"
+        else:
+            val_split = "random"
+
+    if val_split == "participant" and "participant" in train_df.columns and train_df["participant"].nunique() > 1:
+        groups = train_df["participant"].astype(str).to_numpy()
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_size, random_state=args.seed)
+        inner_train_idx, val_idx = next(splitter.split(train_df, train_df["image_category"], groups=groups))
+        inner_train_df = train_df.iloc[inner_train_idx].copy()
+        val_df = train_df.iloc[val_idx].copy()
+        val_participants = sorted(str(value) for value in val_df["participant"].dropna().unique())
+        return inner_train_df, val_df, f"grouped by participant; validation participants: {val_participants}"
+
+    if val_split == "series" and "series_id" in train_df.columns and train_df["series_id"].nunique() > 1:
+        groups = train_df["series_id"].fillna(-1).astype(int).to_numpy()
+        splitter = GroupShuffleSplit(n_splits=1, test_size=args.val_size, random_state=args.seed)
+        inner_train_idx, val_idx = next(splitter.split(train_df, train_df["image_category"], groups=groups))
+        inner_train_df = train_df.iloc[inner_train_idx].copy()
+        val_df = train_df.iloc[val_idx].copy()
+        val_series = [int(series_id) for series_id in sorted(set(groups[val_idx]))]
+        return inner_train_df, val_df, f"grouped by series_id; validation series: {val_series}"
+
+    stratify = train_df["image_category"] if can_stratify(train_df, args.val_size) else None
+    inner_train_df, val_df = train_test_split(
+        train_df,
+        test_size=args.val_size,
+        random_state=args.seed,
+        stratify=stratify,
+    )
+    description = "random stratified" if stratify is not None else "random"
+    return inner_train_df.copy(), val_df.copy(), description
+
+
 def compute_train_stats(train_df, dataset_dir):
     channel_sum = None
     channel_sq_sum = None
@@ -176,9 +279,7 @@ def compute_train_stats(train_df, dataset_dir):
     dataset_dir = Path(dataset_dir)
 
     for _, row in train_df.iterrows():
-        epoch_path = Path(row["epoch_path"])
-        if not epoch_path.exists():
-            epoch_path = dataset_dir / "epochs" / epoch_path.name
+        epoch_path = resolve_epoch_path(row["epoch_path"], dataset_dir)
         with np.load(epoch_path, allow_pickle=True) as data:
             epoch = data["epoch"].astype(np.float64)
 
@@ -251,7 +352,9 @@ def train(args):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     metadata = load_metadata(args.dataset_dir)
+    metadata, label_control_description = apply_label_control(metadata, args)
     train_df, test_df, split_description = split_metadata(metadata, args)
+    train_df, val_df, validation_description = split_validation_metadata(train_df, args)
 
     label_encoder = LabelEncoder()
     label_encoder.fit(metadata["image_category"])
@@ -261,11 +364,13 @@ def train(args):
         if "participant" not in metadata.columns:
             raise ValueError("Participant normalization requires a 'participant' column in metadata.csv")
         train_participant_stats = compute_participant_stats(train_df, args.dataset_dir)
-        # Test participant stats are computed without labels from the test split itself.
+        # Validation/test participant stats use only unlabeled samples from their own split.
+        val_participant_stats = compute_participant_stats(val_df, args.dataset_dir) if val_df is not None else None
         test_participant_stats = compute_participant_stats(test_df, args.dataset_dir)
         mean, std = None, None
     else:
         train_participant_stats = None
+        val_participant_stats = None
         test_participant_stats = None
         mean, std = compute_train_stats(train_df, args.dataset_dir)
 
@@ -279,6 +384,18 @@ def train(args):
         normalization=args.normalization,
         preload=not args.no_preload,
     )
+    val_dataset = None
+    if val_df is not None:
+        val_dataset = EpochDataset(
+            val_df,
+            args.dataset_dir,
+            label_encoder,
+            mean=mean,
+            std=std,
+            participant_stats=val_participant_stats,
+            normalization=args.normalization,
+            preload=not args.no_preload,
+        )
     test_dataset = EpochDataset(
         test_df,
         args.dataset_dir,
@@ -292,6 +409,11 @@ def train(args):
 
     sampler = make_balanced_sampler(train_df, label_encoder, args.balanced_sampler)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=sampler is None, sampler=sampler, num_workers=0)
+    val_loader = (
+        DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+        if val_dataset is not None
+        else None
+    )
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
     first_x, _ = train_dataset[0]
@@ -312,15 +434,19 @@ def train(args):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    best_acc = -1.0
+    best_val_acc = -1.0
+    best_val_loss = float("inf")
+    best_epoch = None
     best_state = None
     history = []
 
     print(f"Dataset: {args.dataset_dir}")
     print(f"Samples: {len(metadata)}")
     print(f"Classes: {len(labels)} -> {', '.join(labels)}")
-    print(f"Train/test: {len(train_dataset)}/{len(test_dataset)}")
+    print(f"Train/validation/test: {len(train_dataset)}/{len(val_dataset) if val_dataset is not None else 0}/{len(test_dataset)}")
     print(f"Split: {split_description}")
+    print(f"Validation split: {validation_description}")
+    print(f"Label control: {label_control_description}")
     print(f"Normalization: {args.normalization}")
     print(f"Balanced sampler: {args.balanced_sampler}")
     print(f"Input shape: {tuple(first_x.shape)}")
@@ -344,14 +470,24 @@ def train(args):
 
         scheduler.step()
         train_loss = total_loss / max(1, total_count)
-        test_loss, test_acc, _, _ = evaluate(model, test_loader, device)
-        history.append({"epoch": epoch_idx, "train_loss": train_loss, "test_loss": test_loss, "test_acc": test_acc})
+        history_row = {"epoch": epoch_idx, "train_loss": train_loss}
 
-        if test_acc > best_acc:
-            best_acc = test_acc
+        if val_loader is not None:
+            val_loss, val_acc, _, _ = evaluate(model, val_loader, device)
+            history_row.update({"val_loss": val_loss, "val_acc": val_acc})
+            is_better = val_acc > best_val_acc or (val_acc == best_val_acc and val_loss < best_val_loss)
+            if is_better:
+                best_val_acc = val_acc
+                best_val_loss = val_loss
+                best_epoch = epoch_idx
+                best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+            print(f"epoch {epoch_idx:03d} | train_loss={train_loss:.4f} | val_loss={val_loss:.4f} | val_acc={val_acc:.4f}")
+        else:
+            best_epoch = epoch_idx
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+            print(f"epoch {epoch_idx:03d} | train_loss={train_loss:.4f}")
 
-        print(f"epoch {epoch_idx:03d} | train_loss={train_loss:.4f} | test_loss={test_loss:.4f} | test_acc={test_acc:.4f}")
+        history.append(history_row)
 
     if best_state is not None:
         model.load_state_dict(best_state)
@@ -368,6 +504,7 @@ def train(args):
             "std": std,
             "args": vars(args),
             "input_shape": tuple(first_x.shape),
+            "best_epoch": best_epoch,
         },
         output_dir / "eegnet.pt",
     )
@@ -378,27 +515,40 @@ def train(args):
         "dataset": args.dataset_dir,
         "samples": int(len(metadata)),
         "train_samples": int(len(train_dataset)),
+        "validation_samples": int(len(val_dataset)) if val_dataset is not None else 0,
         "test_samples": int(len(test_dataset)),
         "split": split_description,
+        "validation_split": validation_description,
+        "label_control": args.label_control,
+        "label_control_description": label_control_description,
         "normalization": args.normalization,
         "balanced_sampler": args.balanced_sampler,
         "labels": labels.tolist(),
         "input_shape": tuple(int(dim) for dim in first_x.shape),
-        "best_test_accuracy": float(best_acc),
+        "best_epoch": int(best_epoch) if best_epoch is not None else None,
+        "best_validation_accuracy": float(best_val_acc) if val_loader is not None else None,
+        "best_validation_loss": float(best_val_loss) if val_loader is not None else None,
+        "best_test_accuracy": float(test_acc),
         "final_test_accuracy": float(test_acc),
         "final_test_loss": float(test_loss),
+        "test_selected_by": "validation_accuracy" if val_loader is not None else "last_epoch",
     }
     with (output_dir / "eegnet_summary.json").open("w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     with (output_dir / "eegnet_report.txt").open("w", encoding="utf-8") as f:
         f.write(f"Dataset: {args.dataset_dir}\n")
         f.write(f"Samples: {len(metadata)}\n")
-        f.write(f"Train/test: {len(train_dataset)}/{len(test_dataset)}\n")
+        f.write(f"Train/validation/test: {len(train_dataset)}/{len(val_dataset) if val_dataset is not None else 0}/{len(test_dataset)}\n")
         f.write(f"Split: {split_description}\n")
+        f.write(f"Validation split: {validation_description}\n")
+        f.write(f"Label control: {label_control_description}\n")
         f.write(f"Normalization: {args.normalization}\n")
         f.write(f"Balanced sampler: {args.balanced_sampler}\n")
         f.write(f"Input shape: {tuple(first_x.shape)}\n")
-        f.write(f"Best test accuracy: {best_acc:.4f}\n")
+        if val_loader is not None:
+            f.write(f"Best validation accuracy: {best_val_acc:.4f}\n")
+            f.write(f"Best validation loss: {best_val_loss:.4f}\n")
+        f.write(f"Best epoch: {best_epoch}\n")
         f.write(f"Final test accuracy: {test_acc:.4f}\n\n")
         f.write(classification_report(y_true, y_pred, target_names=labels, zero_division=0))
         f.write("\nConfusion matrix:\n")
@@ -406,7 +556,9 @@ def train(args):
         f.write("\n")
 
     print()
-    print(f"Best test accuracy: {best_acc:.4f}")
+    if val_loader is not None:
+        print(f"Best validation accuracy: {best_val_acc:.4f}")
+    print(f"Best epoch: {best_epoch}")
     print(f"Final test accuracy: {test_acc:.4f}")
     print(f"Saved model and reports to {output_dir}")
 
@@ -415,9 +567,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train EEGNet on trigger-aligned raw EEG epochs.")
     parser.add_argument("--dataset-dir", default="event_epoch_dataset")
     parser.add_argument("--output-dir", default="eegnet_results")
-    parser.add_argument("--split", choices=["series", "random", "participant"], default="series")
+    parser.add_argument("--split", choices=["series", "random", "participant", "image"], default="series")
     parser.add_argument("--test-participant", default=None)
     parser.add_argument("--test-size", type=float, default=0.2)
+    parser.add_argument("--val-size", type=float, default=0.2)
+    parser.add_argument("--val-split", choices=["auto", "random", "series", "participant"], default="auto")
+    parser.add_argument("--label-control", choices=["none", "permute"], default="none")
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)

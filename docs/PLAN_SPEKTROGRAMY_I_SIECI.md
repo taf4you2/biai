@@ -4,7 +4,7 @@
 
 Obecny `process_eeg.py` generuje obrazy PSD z rownych 2-sekundowych okien. To jest dobre do eksperymentow z VQ-VAE/anomaliami, ale nie wystarcza do proby odtworzenia obrazu, bo nie ma powiazania z konkretnym bodzcem.
 
-Dodany skrypt `build_event_spectrogram_dataset.py` tworzy drugi tor danych:
+Dodany skrypt `scripts/build_event_spectrogram_dataset.py` tworzy drugi tor danych:
 
 ```text
 EDF + annotations + events CSV -> epoki wokol triggera -> tensor spektrogramu -> metadata.csv
@@ -19,13 +19,13 @@ Domyslnie mapowany jest trigger `12 = IMAGE_ON`, czyli moment pokazania zdjecia.
 Uruchomienie testowe:
 
 ```powershell
-python .\build_event_spectrogram_dataset.py --max-trials 3 --output-dir event_spectrogram_dataset_smoke
+python .\scripts\build_event_spectrogram_dataset.py --max-trials 3 --output-dir event_spectrogram_dataset_smoke
 ```
 
 Pelny dataset:
 
 ```powershell
-python .\build_event_spectrogram_dataset.py --output-dir event_spectrogram_dataset
+python .\scripts\build_event_spectrogram_dataset.py --output-dir event_spectrogram_dataset
 ```
 
 ## 2. Co dac do sieci
@@ -60,9 +60,9 @@ tmax =  1.5 s
 To daje aktywnosc przed bodzcem, reakcje na obraz i krotki slad po obrazie. Do porownania warto wygenerowac trzy datasety:
 
 ```powershell
-python .\build_event_spectrogram_dataset.py --tmin -0.5 --tmax 1.5 --output-dir event_spectrogram_dataset_image_on_wide
-python .\build_event_spectrogram_dataset.py --tmin 0.0 --tmax 0.8 --output-dir event_spectrogram_dataset_image_on_early
-python .\build_event_spectrogram_dataset.py --event-code 14 --tmin 0.0 --tmax 2.0 --output-dir event_spectrogram_dataset_describe
+python .\scripts\build_event_spectrogram_dataset.py --tmin -0.5 --tmax 1.5 --output-dir event_spectrogram_dataset_image_on_wide
+python .\scripts\build_event_spectrogram_dataset.py --tmin 0.0 --tmax 0.8 --output-dir event_spectrogram_dataset_image_on_early
+python .\scripts\build_event_spectrogram_dataset.py --event-code 14 --tmin 0.0 --tmax 2.0 --output-dir event_spectrogram_dataset_describe
 ```
 
 Interpretacja:
@@ -109,8 +109,8 @@ Najlepszy aktualnie jest EEGNet na surowych epokach `1 x 21 x 1200`.
 Nastepny krok: porownac okna czasowe i triggery:
 
 ```powershell
-python .\build_event_epoch_dataset.py --tmin 0.0 --tmax 0.8 --output-dir event_epoch_dataset_image_on_early
-python .\build_event_epoch_dataset.py --event-code 14 --tmin 0.0 --tmax 2.0 --output-dir event_epoch_dataset_describe
+python .\scripts\build_event_epoch_dataset.py --tmin 0.0 --tmax 0.8 --output-dir event_epoch_dataset_image_on_early
+python .\scripts\build_event_epoch_dataset.py --event-code 14 --tmin 0.0 --tmax 2.0 --output-dir event_epoch_dataset_describe
 ```
 
 Jesli EEGNet dalej wygrywa, wtedy warto przeniesc eksperyment do Colab/GPU i zrobic strojenie hiperparametrow.
@@ -242,7 +242,7 @@ roznice miedzy uczestnikami/sesjami. Kolejne prace powinny isc w:
 
 ## 11. Normalizacja per uczestnik i balansowanie
 
-Dodano do `train_eegnet.py`:
+Dodano do `scripts/train_eegnet.py`:
 
 ```text
 --normalization global|participant|epoch

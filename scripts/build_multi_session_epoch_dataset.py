@@ -6,13 +6,20 @@ import numpy as np
 import pandas as pd
 
 from build_event_epoch_dataset import make_stem
-from build_event_spectrogram_dataset import attach_event_metadata, events_from_annotations, prepare_raw
+from build_event_spectrogram_dataset import (
+    attach_event_metadata,
+    events_from_annotations,
+    prepare_raw,
+    write_event_alignment_qc,
+)
 
 
 def build_session_epochs(session, output_dir, args):
     participant = str(session["participant"])
     participant_dir = output_dir / "epochs" / participant
+    qc_dir = output_dir / "event_alignment_qc"
     participant_dir.mkdir(parents=True, exist_ok=True)
+    qc_dir.mkdir(parents=True, exist_ok=True)
     for old_file in participant_dir.glob("*.npz"):
         old_file.unlink()
 
@@ -26,6 +33,14 @@ def build_session_epochs(session, output_dir, args):
     )
     annotation_events = events_from_annotations(raw)
     events = attach_event_metadata(annotation_events, session["events_csv"])
+    qc = write_event_alignment_qc(
+        annotation_events,
+        session["events_csv"],
+        events,
+        qc_dir / f"{participant}_rep{int(session['rep'])}.csv",
+        args.event_code,
+        strict=args.strict_event_qc,
+    )
     target_events = events[events["event_code"] == args.event_code].copy()
     if args.max_trials_per_session:
         target_events = target_events.head(args.max_trials_per_session)
@@ -73,7 +88,8 @@ def build_session_epochs(session, output_dir, args):
         metadata_rows.append(metadata)
 
     print(f"{participant}: saved {len(metadata_rows)} epochs")
-    return metadata_rows
+    target_qc = qc[qc["event_code"] == args.event_code].iloc[0].to_dict()
+    return metadata_rows, target_qc
 
 
 def build_dataset(args):
@@ -85,7 +101,7 @@ def build_dataset(args):
     all_rows = []
     session_summaries = []
     for _, session in manifest.iterrows():
-        rows = build_session_epochs(session, output_dir, args)
+        rows, target_qc = build_session_epochs(session, output_dir, args)
         all_rows.extend(rows)
         session_summaries.append(
             {
@@ -93,6 +109,11 @@ def build_dataset(args):
                 "rep": int(session["rep"]),
                 "saved_epochs": len(rows),
                 "image_on_events": int(session["image_on_events"]),
+                "target_event_code": args.event_code,
+                "target_edf_annotation_count": int(target_qc["edf_annotation_count"]),
+                "target_csv_event_count": int(target_qc["csv_event_count"]),
+                "target_missing_metadata_rows": int(target_qc["missing_metadata_rows"] or 0),
+                "target_event_qc_status": target_qc["status"],
                 "edf_path": session["edf_path"],
             }
         )
@@ -109,7 +130,7 @@ def build_dataset(args):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Build a multi-session raw EEG epoch dataset from a sessions manifest.")
-    parser.add_argument("--sessions-manifest", default="visual_recall_sessions_manifest.csv")
+    parser.add_argument("--sessions-manifest", default="manifests/visual_recall_sessions_manifest.csv")
     parser.add_argument("--output-dir", default="event_epoch_multisession_image_on_0_0p8")
     parser.add_argument("--event-code", type=int, default=12)
     parser.add_argument("--tmin", type=float, default=0.0)
@@ -119,6 +140,7 @@ def parse_args():
     parser.add_argument("--notch-freq", type=float, default=50.0)
     parser.add_argument("--reject-threshold", type=float, default=0.5)
     parser.add_argument("--max-trials-per-session", type=int, default=None)
+    parser.add_argument("--strict-event-qc", action="store_true")
     return parser.parse_args()
 
 

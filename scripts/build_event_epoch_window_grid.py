@@ -6,7 +6,12 @@ import numpy as np
 import pandas as pd
 
 from build_event_epoch_dataset import make_stem
-from build_event_spectrogram_dataset import attach_event_metadata, events_from_annotations, prepare_raw
+from build_event_spectrogram_dataset import (
+    attach_event_metadata,
+    events_from_annotations,
+    prepare_raw,
+    write_event_alignment_qc,
+)
 
 
 INITIAL_WINDOW_SPECS = [
@@ -34,12 +39,21 @@ WINDOW_PRESETS = {
 }
 
 
-def write_window_dataset(raw, events, spec, output_parent, args):
+def write_window_dataset(raw, annotation_events, events, spec, output_parent, args):
     output_dir = Path(output_parent) / spec["name"]
     epoch_dir = output_dir / "epochs"
     epoch_dir.mkdir(parents=True, exist_ok=True)
     for old_file in epoch_dir.glob("*.npz"):
         old_file.unlink()
+
+    write_event_alignment_qc(
+        annotation_events,
+        args.events_csv,
+        events,
+        output_dir / "event_alignment_qc.csv",
+        spec["event_code"],
+        strict=args.strict_event_qc,
+    )
 
     target_events = events[events["event_code"] == spec["event_code"]].copy()
     if args.max_trials:
@@ -120,7 +134,7 @@ def build_grid(args):
             raise ValueError(f"Unknown window names for preset {args.preset}: {sorted(missing)}")
 
     for spec in specs:
-        rows.append(write_window_dataset(raw, events, spec, output_parent, args))
+        rows.append(write_window_dataset(raw, annotation_events, events, spec, output_parent, args))
 
     pd.DataFrame(rows).to_csv(output_parent / "window_grid_manifest.csv", index=False)
     print(f"Saved window grid manifest to {output_parent / 'window_grid_manifest.csv'}")
@@ -139,6 +153,7 @@ def parse_args():
     parser.add_argument("--notch-freq", type=float, default=50.0)
     parser.add_argument("--reject-threshold", type=float, default=0.5)
     parser.add_argument("--max-trials", type=int, default=None)
+    parser.add_argument("--strict-event-qc", action="store_true")
     return parser.parse_args()
 
 

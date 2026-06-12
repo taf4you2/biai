@@ -5,7 +5,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from build_event_spectrogram_dataset import attach_event_metadata, events_from_annotations, prepare_raw
+from build_event_spectrogram_dataset import (
+    attach_event_metadata,
+    events_from_annotations,
+    prepare_raw,
+    write_event_alignment_qc,
+)
 
 
 def make_stem(row_idx, event_code, row):
@@ -37,6 +42,14 @@ def build_dataset(args):
 
     annotation_events = events_from_annotations(raw)
     events = attach_event_metadata(annotation_events, args.events_csv)
+    write_event_alignment_qc(
+        annotation_events,
+        args.events_csv,
+        events,
+        output_dir / "event_alignment_qc.csv",
+        args.event_code,
+        strict=args.strict_event_qc,
+    )
     target_events = events[events["event_code"] == args.event_code].copy()
     if args.max_trials:
         target_events = target_events.head(args.max_trials)
@@ -101,6 +114,7 @@ def parse_args():
     parser.add_argument("--notch-freq", type=float, default=50.0)
     parser.add_argument("--reject-threshold", type=float, default=0.5)
     parser.add_argument("--max-trials", type=int, default=None)
+    parser.add_argument("--strict-event-qc", action="store_true")
     return parser.parse_args()
 
 

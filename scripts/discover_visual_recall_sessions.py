@@ -43,7 +43,7 @@ def discover_sessions(results_dir):
 def parse_args():
     parser = argparse.ArgumentParser(description="Discover EEGBasedVisualRecall EDF/event/impedance session triplets.")
     parser.add_argument("--results-dir", default="dane/Wyniki")
-    parser.add_argument("--output", default="visual_recall_sessions_manifest.csv")
+    parser.add_argument("--output", default="manifests/visual_recall_sessions_manifest.csv")
     return parser.parse_args()
 
 

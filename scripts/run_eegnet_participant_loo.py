@@ -6,6 +6,9 @@ from pathlib import Path
 import pandas as pd
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+
+
 def run_command(command):
     print(" ".join(str(part) for part in command), flush=True)
     subprocess.run(command, check=True)
@@ -26,7 +29,7 @@ def run_loo(args):
 
         command = [
             sys.executable,
-            "train_eegnet.py",
+            str(SCRIPT_DIR / "train_eegnet.py"),
             "--dataset-dir",
             args.dataset_dir,
             "--output-dir",
@@ -39,6 +42,12 @@ def run_loo(args):
             str(args.epochs),
             "--batch-size",
             str(args.batch_size),
+            "--val-size",
+            str(args.val_size),
+            "--val-split",
+            args.val_split,
+            "--label-control",
+            args.label_control,
             "--normalization",
             args.normalization,
             "--balanced-sampler",
@@ -53,7 +62,7 @@ def run_loo(args):
     run_command(
         [
             sys.executable,
-            "aggregate_participant_loo_results.py",
+            str(SCRIPT_DIR / "aggregate_participant_loo_results.py"),
             "--results-dir",
             str(results_parent),
             "--output",
@@ -68,6 +77,9 @@ def parse_args():
     parser.add_argument("--results-parent", default="eegnet_multisession_results")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--val-size", type=float, default=0.2)
+    parser.add_argument("--val-split", choices=["auto", "random", "series", "participant"], default="auto")
+    parser.add_argument("--label-control", choices=["none", "permute"], default="none")
     parser.add_argument("--normalization", choices=["global", "participant", "epoch"], default="global")
     parser.add_argument("--balanced-sampler", choices=["none", "category", "participant", "category_participant"], default="none")
     parser.add_argument("--cpu", action="store_true")
