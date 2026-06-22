@@ -15,7 +15,9 @@ from torch.utils.data import DataLoader, Dataset, WeightedRandomSampler
 
 def resolve_epoch_path(raw_path, dataset_dir):
     dataset_dir = Path(dataset_dir)
-    epoch_path = Path(raw_path)
+    # Metadata can be created on Windows and consumed on Linux/Colab (or the
+    # other way around). Normalize both separator styles before using Path.
+    epoch_path = Path(str(raw_path).replace("\\", "/"))
     candidates = [epoch_path]
 
     if not epoch_path.is_absolute():

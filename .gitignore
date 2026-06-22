@@ -30,3 +30,4 @@ eegnet_image_split_results*/
 eegnet_participant_image*_results*/
 .venv/
 .venv*/
+colab_export/
