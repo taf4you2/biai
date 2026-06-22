@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import random
 from pathlib import Path
 
@@ -395,6 +396,56 @@ def evaluate(model, loader, device):
     return mean_loss, accuracy, np.array(y_true), np.array(y_pred)
 
 
+def save_training_checkpoint(
+    checkpoint_path,
+    epoch,
+    model,
+    optimizer,
+    scheduler,
+    history,
+    best_state,
+    best_epoch,
+    best_val_acc,
+    best_val_loss,
+    args,
+):
+    checkpoint_path = Path(checkpoint_path)
+    temporary_path = checkpoint_path.with_suffix(checkpoint_path.suffix + ".tmp")
+    payload = {
+        "epoch": int(epoch),
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "history": history,
+        "best_state_dict": best_state,
+        "best_epoch": best_epoch,
+        "best_validation_accuracy": best_val_acc,
+        "best_validation_loss": best_val_loss,
+        "python_random_state": random.getstate(),
+        "numpy_random_state": np.random.get_state(),
+        "torch_random_state": torch.get_rng_state(),
+        "cuda_random_state": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        "args": vars(args),
+    }
+    torch.save(payload, temporary_path)
+    os.replace(temporary_path, checkpoint_path)
+
+
+def restore_training_checkpoint(checkpoint_path, model, optimizer, scheduler):
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+    random.setstate(checkpoint["python_random_state"])
+    np.random.set_state(checkpoint["numpy_random_state"])
+    torch.set_rng_state(checkpoint["torch_random_state"].cpu())
+    if torch.cuda.is_available() and checkpoint.get("cuda_random_state") is not None:
+        torch.cuda.set_rng_state_all(
+            [state.cpu() for state in checkpoint["cuda_random_state"]]
+        )
+    return checkpoint
+
+
 def train(args):
     seed_everything(args.seed)
     output_dir = Path(args.output_dir)
@@ -488,6 +539,22 @@ def train(args):
     best_epoch = None
     best_state = None
     history = []
+    start_epoch = 1
+    checkpoint_path = output_dir / "training_checkpoint.pt"
+
+    if args.resume and checkpoint_path.is_file():
+        checkpoint = restore_training_checkpoint(
+            checkpoint_path,
+            model,
+            optimizer,
+            scheduler,
+        )
+        start_epoch = int(checkpoint["epoch"]) + 1
+        history = list(checkpoint.get("history", []))
+        best_state = checkpoint.get("best_state_dict")
+        best_epoch = checkpoint.get("best_epoch")
+        best_val_acc = float(checkpoint.get("best_validation_accuracy", -1.0))
+        best_val_loss = float(checkpoint.get("best_validation_loss", float("inf")))
 
     print(f"Dataset: {args.dataset_dir}")
     print(f"Samples: {len(metadata)}")
@@ -501,9 +568,11 @@ def train(args):
     print(f"Balanced sampler: {args.balanced_sampler}")
     print(f"Input shape: {tuple(first_x.shape)}")
     print(f"Device: {device}")
+    if start_epoch > 1:
+        print(f"Resuming from checkpoint: epoch {start_epoch - 1}")
     print()
 
-    for epoch_idx in range(1, args.epochs + 1):
+    for epoch_idx in range(start_epoch, args.epochs + 1):
         model.train()
         total_loss = 0.0
         total_count = 0
@@ -538,6 +607,26 @@ def train(args):
             print(f"epoch {epoch_idx:03d} | train_loss={train_loss:.4f}")
 
         history.append(history_row)
+        if args.checkpoint_every > 0 and (
+            epoch_idx % args.checkpoint_every == 0 or epoch_idx == args.epochs
+        ):
+            save_training_checkpoint(
+                checkpoint_path=checkpoint_path,
+                epoch=epoch_idx,
+                model=model,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                history=history,
+                best_state=best_state,
+                best_epoch=best_epoch,
+                best_val_acc=best_val_acc,
+                best_val_loss=best_val_loss,
+                args=args,
+            )
+            pd.DataFrame(history).to_csv(
+                output_dir / "eegnet_history.partial.csv",
+                index=False,
+            )
 
     if best_state is not None:
         model.load_state_dict(best_state)
@@ -641,6 +730,13 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--no-preload", action="store_true")
+    parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=1,
+        help="Save a resumable checkpoint every N epochs; 0 disables checkpoints.",
+    )
     return parser.parse_args()
 
 

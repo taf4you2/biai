@@ -40,21 +40,22 @@ git push -u origin codex/eeg-pipeline-qc
 
 1. W Colabie wybierz `Środowisko wykonawcze -> Zmień typ środowiska
    wykonawczego -> GPU`.
-2. Uruchamiaj komórki notebooka po kolei.
-3. Przy pierwszym montowaniu Google Drive zaakceptuj dostęp.
-4. Najpierw uruchom test jednej epoki.
-5. Po udanym teście uruchom pełny trening.
+2. Zamontuj Google Drive i zaakceptuj dostęp.
+3. Ustaw parametry w komórce konfiguracyjnej.
+4. Uruchom komórkę `TRYB BEZOBSŁUGOWY` i zostaw ją pracującą.
 
 Notebook:
 
 - klonuje gałąź `codex/eeg-pipeline-qc`;
+- sam znajduje ZIP, również gdy Drive dopisał do nazwy `(1)`;
 - kopiuje ZIP z Drive do `/content`;
 - rozpakowuje i weryfikuje wszystkie ścieżki epok;
 - sprawdza dostępność GPU;
-- wykonuje trening testowy ze splitem `participant_image` i walidacją po
+- wykonuje pełny trening ze splitem `participant_image` i walidacją po
   uczestniku;
-- wykonuje pełny trening;
-- kopiuje wyniki do `MyDrive/biai/results/eegnet_mole_colab`.
+- po każdej epoce zapisuje checkpoint, częściową historię i log na Drive;
+- po przerwaniu sesji automatycznie wznawia trening;
+- zapisuje model, raporty i wykresy na Drive.
 
 ## Zmiana eksperymentu
 
@@ -69,3 +70,10 @@ BATCH_SIZE = 256
 Dostępni uczestnicy: `abc`, `Bear`, `fghx`, `mole`, `Reshi`.
 
 Przy błędzie braku pamięci GPU zmniejsz `BATCH_SIZE` do `128` lub `64`.
+
+Google Colab nadal może zakończyć sesję z powodu limitu czasu. W takim
+przypadku uruchom ponownie trzy komórki notebooka. Opcja `--resume` odczyta
+`training_checkpoint.pt` z Drive i rozpocznie od następnej epoki.
+
+Nie używaj skryptów typu „keep alive” do obchodzenia limitów Colaba. Checkpoint
+po każdej epoce zabezpiecza wykonaną pracę w dozwolony sposób.
