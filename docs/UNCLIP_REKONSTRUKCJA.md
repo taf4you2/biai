@@ -84,3 +84,7 @@ Notebook automatycznie:
 4. pokazuje gridy wygenerowanych obrazów,
 5. wypisuje decyzję, czy odpalać pełne generowanie, czy przejść do kolejnego
    eksperymentu poprawiającego dekoder/generator.
+
+W Colabie notebook próbuje sam zamontować Google Drive, sprawdza typowe
+lokalizacje (`MyDrive/biai/results`, `MyDrive/wyniki colab`, `MyDrive/biai`) i
+awaryjnie szuka katalogów/ZIP-ów z wynikami po całym `MyDrive`.
