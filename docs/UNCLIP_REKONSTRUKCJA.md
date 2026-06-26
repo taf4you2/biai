@@ -72,3 +72,15 @@ Model `diffusers/stable-diffusion-2-1-unclip-i2i-l` zostanie pobrany przy
 pierwszym użyciu i wymaga GPU. Nie uruchamiaj pełnej generacji lokalnie na CPU.
 Trening EEG -> embedding zapisuje checkpoint po każdej epoce; ponowne
 uruchomienie z `--resume` kontynuuje od ostatniej ukończonej epoki.
+
+## Analiza wyników
+
+Po pobraniu ZIP-a z Drive uruchom `notebooks/ANALIZA_WYNIKOW_COLAB_REKONSTRUKCJA.ipynb`.
+Notebook automatycznie:
+
+1. rozpoznaje, czy wynik to tylko `smoke`, czy pełne `full`,
+2. wczytuje metryki EEG -> CLIP retrieval i Stable UnCLIP,
+3. porównuje wynik z lokalnym VAE baseline,
+4. pokazuje gridy wygenerowanych obrazów,
+5. wypisuje decyzję, czy odpalać pełne generowanie, czy przejść do kolejnego
+   eksperymentu poprawiającego dekoder/generator.
