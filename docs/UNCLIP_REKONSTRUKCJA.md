@@ -29,7 +29,9 @@ Na komputerze uruchom:
 Powstanie `colab_export/biai_unclip_assets.zip`. Prześlij go na prywatny Drive
 do `MyDrive/biai/data/` obok istniejącego `biai_eeg_qc_0_0p8.zip`.
 
-Gotowy notebook: `notebooks/REKONSTRUKCJA_UNCLIP_COLAB.ipynb`.
+Gotowy notebook: `notebooks/REKONSTRUKCJA_UNCLIP_COLAB.ipynb`. Notebook
+domyślnie robi smoke test na 2 obrazach, a po nim automatycznie uruchamia pełne
+generowanie do osobnego folderu `unclip_mole_generation_full`.
 
 ## Kolejność uruchomienia
 
@@ -55,7 +57,8 @@ python scripts/train_eeg_image_retrieval.py \
   --epochs 25 --batch-size 128
 ```
 
-5. Najpierw wygeneruj mały smoke test (`--max-images 2`), potem pełny wynik:
+5. Najpierw wygeneruj mały smoke test (`--max-images 2`), potem pełny wynik.
+   Notebook robi oba kroki automatycznie, ale ręcznie odpowiada to:
 
 ```bash
 python scripts/generate_unclip_from_eeg.py \
