@@ -135,3 +135,13 @@ osiągnęła `top1=18.18%`, `top5=38.64%`, `category_top1=38.64%` i
 liczbowo przebija VAE ensemble (`SSIM≈0.286`). Nie jest to jeszcze wolna
 generacja obrazu z EEG; to mocny, kontrolowany etap pośredni: wybór najlepszego
 obrazu z puli kandydatów z użyciem EEGNet jako bramki kategorii.
+
+Następna lokalna iteracja sprawdziła, czy zamiast jednego kandydata warto
+uśredniać top-k obrazów w ważony prototyp pikselowy. Notebook
+`notebooks/CATEGORY_PROTOTYPE_RECONSTRUCTION_LOCAL.ipynb` i skrypt
+`scripts/run_category_prototype_reconstruction.py` wybrały na walidacji wariant
+`eegnet_top1_category_gate_k3_t0.5_anchor0.5`. Na teście osiągnął on
+`SSIM≈0.286` i `L1≈0.241`, czyli praktycznie poziom VAE, ale mniej niż pojedynczy
+category-gate nearest-neighbor (`SSIM≈0.308`). Wniosek: top-k kandydaci są
+dobrym kontekstem dla generatora albo refinementu, ale prosta średnia pikseli
+rozmywa szczegóły i miesza abstrakcyjne wzorce.
