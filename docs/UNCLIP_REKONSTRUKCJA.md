@@ -124,3 +124,14 @@ dla surowego cosinusa. To nadal jest lekko poniżej VAE ensemble dla `mole`
 prawdziwej kategorii osiągnął `SSIM≈0.431`, więc następny etap powinien iść w
 stronę category-aware reconstruction: najpierw zawężenie/predykcja kategorii,
 potem reranking albo generowanie wewnątrz tej kategorii.
+
+Ten kolejny etap został uruchomiony lokalnie w
+`notebooks/CATEGORY_AWARE_RERANKING_LOCAL.ipynb` oraz w skrypcie
+`scripts/run_category_aware_reranking.py`. Metoda wybrana na walidacji,
+`eegnet_top1_category_gate`, ogranicza kandydatów do kategorii przewidzianej
+przez EEGNet, a następnie używa embeddingowego rerankingu. Na teście dla `mole`
+osiągnęła `top1=18.18%`, `top5=38.64%`, `category_top1=38.64%` i
+`SSIM≈0.308`. To pierwszy wynik candidate-constrained reconstruction, który
+liczbowo przebija VAE ensemble (`SSIM≈0.286`). Nie jest to jeszcze wolna
+generacja obrazu z EEG; to mocny, kontrolowany etap pośredni: wybór najlepszego
+obrazu z puli kandydatów z użyciem EEGNet jako bramki kategorii.
