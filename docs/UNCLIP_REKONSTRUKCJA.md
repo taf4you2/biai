@@ -154,3 +154,17 @@ kategoria pogorszył wynik do `SSIM≈0.292`. Jednocześnie oracle per-obraz wś
 tych samych nie-oracle kandydatów osiągnął `SSIM≈0.386`. To znaczy, że problemem
 nie jest brak dobrych kandydatów, tylko brak dobrego predyktora zaufania, który
 powie, kiedy użyć NN, kiedy prototypu, a kiedy innego scoringu.
+
+Następna lokalna iteracja, `notebooks/CONFIDENCE_FEATURE_SELECTOR_LOCAL.ipynb`
+oraz `scripts/run_confidence_feature_selector.py`, uczyła taki predyktor
+zaufania na cechach obserwowalnych bez oracle: marginesach i entropii score'ów,
+hubness kandydata, prawdopodobieństwach/entropii EEGNet, zgodności kategorii
+oraz typie metody. Ridge selector wybrał na walidacji `alpha=1000`, ale na teście
+osiągnął `SSIM≈0.304`, a wariant NN-only `SSIM≈0.300`. Oba wyniki są poniżej
+stabilnego baseline'u `nn_eegnet_top1_gate` (`SSIM≈0.308`). Oracle nadal pokazuje
+zapas jakości: `SSIM≈0.361` dla NN-only i `SSIM≈0.386` dla wszystkich kandydatów.
+Wniosek: obecne confidence features są dobre diagnostycznie, ale jeszcze
+overfitują walidację i nie powinny zastępować prostego baseline'u. Kolejny
+sensowny krok to więcej danych kalibracyjnych/splitów albo trenowanie predyktora
+confidence na większej liczbie uczestników, zamiast dokładania ręcznych reguł na
+jednym małym zbiorze.
