@@ -114,3 +114,13 @@ testowe zapadały się do 3 najczęściej wybieranych kandydatów. Następny not
 `notebooks/KOREKCJA_HUBNESS_RERANKING_COLAB.ipynb` testuje korekcje scoringu
 kandydatów bez ponownego trenowania modelu: centrowanie kandydatów, z-score,
 CSLS oraz oracle ograniczony do prawdziwej kategorii.
+
+Lokalny run tego notebooka po wyczerpaniu Colaba wskazał `candidate_zscore`
+jako najlepszą metodę bez oracle: `top1=13.64%`, `top5=36.36%`,
+`category_top1=29.55%`, `SSIM=0.264` i 24 różne przewidywane obrazy zamiast 3
+dla surowego cosinusa. To nadal jest lekko poniżej VAE ensemble dla `mole`
+(`SSIM≈0.286`), ale wyraźnie powyżej bezpośredniego Stable UnCLIP EEG
+(`SSIM≈0.173`) oraz Stable UnCLIP oracle (`SSIM≈0.246`). Oracle ograniczony do
+prawdziwej kategorii osiągnął `SSIM≈0.431`, więc następny etap powinien iść w
+stronę category-aware reconstruction: najpierw zawężenie/predykcja kategorii,
+potem reranking albo generowanie wewnątrz tej kategorii.
