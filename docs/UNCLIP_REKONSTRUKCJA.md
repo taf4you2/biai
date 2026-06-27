@@ -89,6 +89,10 @@ W Colabie notebook próbuje sam zamontować Google Drive, sprawdza typowe
 lokalizacje (`MyDrive/biai/results`, `MyDrive/wyniki colab`, `MyDrive/biai`) i
 awaryjnie szuka katalogów/ZIP-ów z wynikami po całym `MyDrive`.
 
+Jeśli potrzebujesz jednego miejsca opisującego cały przepływ pracy w Colabie
+oraz logikę interpretacji wyników, użyj
+`notebooks/PRZEWODNIK_COLAB_I_ANALIZA_WYNIKOW.ipynb`.
+
 ## Następny eksperyment po pełnym UnCLIP
 
 Pełny wynik `unclip_mole_generation_full` dla `mole` dał niższe podobieństwo
