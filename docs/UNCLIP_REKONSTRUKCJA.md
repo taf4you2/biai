@@ -145,3 +145,12 @@ uśredniać top-k obrazów w ważony prototyp pikselowy. Notebook
 category-gate nearest-neighbor (`SSIM≈0.308`). Wniosek: top-k kandydaci są
 dobrym kontekstem dla generatora albo refinementu, ale prosta średnia pikseli
 rozmywa szczegóły i miesza abstrakcyjne wzorce.
+
+Kolejna szybka iteracja, `notebooks/CONFIDENCE_AWARE_SELECTION_LOCAL.ipynb` i
+`scripts/run_confidence_aware_selection.py`, sprawdziła, czy walidacja potrafi
+wybrać między pojedynczym NN a prototypem. Globalny wybór walidacyjny pozostał
+przy `nn_eegnet_top1_gate` (`SSIM≈0.308` na teście), a selektor per przewidziana
+kategoria pogorszył wynik do `SSIM≈0.292`. Jednocześnie oracle per-obraz wśród
+tych samych nie-oracle kandydatów osiągnął `SSIM≈0.386`. To znaczy, że problemem
+nie jest brak dobrych kandydatów, tylko brak dobrego predyktora zaufania, który
+powie, kiedy użyć NN, kiedy prototypu, a kiedy innego scoringu.
