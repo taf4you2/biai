@@ -88,3 +88,19 @@ Notebook automatycznie:
 W Colabie notebook próbuje sam zamontować Google Drive, sprawdza typowe
 lokalizacje (`MyDrive/biai/results`, `MyDrive/wyniki colab`, `MyDrive/biai`) i
 awaryjnie szuka katalogów/ZIP-ów z wynikami po całym `MyDrive`.
+
+## Następny eksperyment po pełnym UnCLIP
+
+Pełny wynik `unclip_mole_generation_full` dla `mole` dał niższe podobieństwo
+niż VAE baseline: UnCLIP z EEG osiągnął około `SSIM=0.173`, oracle około
+`SSIM=0.246`, a VAE ensemble dla `mole` około `SSIM=0.286`. To sugeruje, że
+pretrained Stable UnCLIP nie jest jeszcze dobrym bezpośrednim generatorem dla
+tego sygnału i tych bodźców.
+
+Kolejny notebook to
+`notebooks/RETRIEVAL_RERANKING_PO_UNCLIP_COLAB.ipynb`. Sprawdza alternatywny
+kierunek: użycie EEG -> CLIP embedding jako mechanizmu retrieval/reranking,
+czyli wyboru najbliższego obrazu/kandydata po uśrednieniu powtórzeń, zamiast
+bezpośredniego generowania obrazu z rozmytego embeddingu EEG. Notebook porównuje
+wynik z VAE oraz z pełnym UnCLIP i zapisuje gridy najlepszych/najgorszych
+rekonstrukcji retrieval.

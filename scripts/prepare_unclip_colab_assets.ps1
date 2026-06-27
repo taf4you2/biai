@@ -12,7 +12,8 @@ $relativeSources = @(
     "reconstruction_manifests",
     "scripts/train_eeg_image_retrieval.py",
     "scripts/extract_unclip_image_embeddings.py",
-    "scripts/generate_unclip_from_eeg.py"
+    "scripts/generate_unclip_from_eeg.py",
+    "scripts/reconstruct_nearest_neighbor.py"
 )
 
 $files = @()
