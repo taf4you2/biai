@@ -108,3 +108,9 @@ czyli wyboru najbliższego obrazu/kandydata po uśrednieniu powtórzeń, zamiast
 bezpośredniego generowania obrazu z rozmytego embeddingu EEG. Notebook porównuje
 wynik z VAE oraz z pełnym UnCLIP i zapisuje gridy najlepszych/najgorszych
 rekonstrukcji retrieval.
+
+Po wynikach retrieval/reranking wykryliśmy silny problem hubness: 44 obrazy
+testowe zapadały się do 3 najczęściej wybieranych kandydatów. Następny notebook
+`notebooks/KOREKCJA_HUBNESS_RERANKING_COLAB.ipynb` testuje korekcje scoringu
+kandydatów bez ponownego trenowania modelu: centrowanie kandydatów, z-score,
+CSLS oraz oracle ograniczony do prawdziwej kategorii.
